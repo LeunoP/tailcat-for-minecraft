@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "com.tailscale.mclink.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["IntegratedServerAccessor"],
+  "injectors": { "defaultRequire": 1 }
+}

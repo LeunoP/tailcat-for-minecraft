@@ -1,0 +1,11 @@
+{
+  "mclink.share": "Share with Tailcat",
+  "mclink.join": "Connect with Tailcat",
+  "mclink.invite": "Tailcat Invitation",
+  "mclink.invite_hint": "Paste an mcl1_ Tailcat invitation",
+  "mclink.starting": "Starting secure tunnel…",
+  "mclink.sharing": "World is shared remotely",
+  "mclink.copy": "Copy Invitation",
+  "mclink.stop": "Stop Sharing",
+  "mclink.connect": "Connect"
+}

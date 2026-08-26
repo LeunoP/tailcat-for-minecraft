@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "tailcat-for-minecraft",
+  "version": "${version}",
+  "name": "Tailcat for Minecraft",
+  "description": "Share Minecraft worlds through Tailcat's userspace WireGuard transport.",
+  "authors": ["Tailscale"],
+  "license": "BSD-3-Clause",
+  "environment": "client",
+  "entrypoints": { "client": ["com.tailscale.mclink.McLinkClient"] },
+  "mixins": ["mclink.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

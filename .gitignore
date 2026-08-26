@@ -1,0 +1,26 @@
+# Gradle output and caches
+.gradle/
+**/.gradle/
+**/build/
+
+# Minecraft development instances (saves, logs, options, extracted helpers)
+mod/run/
+mod/run-*/
+run/
+
+# Go build output
+helper/mclink-helper
+helper/mclink-helper.exe
+helper/bin/
+
+# IDE and operating-system metadata
+.idea/
+.vscode/
+*.iml
+.DS_Store
+.stfolder/
+
+# Local diagnostics and temporary files
+*.log
+*.tmp
+hs_err_pid*
