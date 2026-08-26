@@ -1,5 +1,11 @@
 # Tailcat for Minecraft
 
+> [!WARNING]
+> This is a quick, mostly AI-generated prototype demonstrating one way to use
+> Tailcat. It is not an officially supported Tailscale product, and Tailscale
+> has no plans to distribute it. This repository is provided for demonstration
+> and amusement only.
+
 A Fabric 1.21.1 client mod that shares an integrated Minecraft world through
 [Tailcat](https://github.com/tailscale/tailcat)'s
 standard userspace WireGuard, magicsock direct NAT traversal, and DERP fallback.
