@@ -9,7 +9,7 @@ encryption.
 
 ## Demo
 
-[Watch Tailcat for Minecraft in action](tailcatmcdemo.mp4)
+https://github.com/user-attachments/assets/18cb9999-c6bc-482b-b4e8-5d37423a6259
 
 ## Build
 
