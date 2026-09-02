@@ -54,6 +54,7 @@
 
 저장소를 클론한 후 각 서브프로젝트 디렉토리에서 Gradle을 통해 빌드할 수 있습니다:
 
+```bash
 # Fabric 26.2 빌드
 ./gradlew :mod:build
 
@@ -70,7 +71,7 @@
 ./gradlew -p mod-neoforge-1.20.1 build
 ./gradlew -p mod-neoforge-1.21.1 build
 ./gradlew -p mod-neoforge-26.2 build
-`
+```
 
 ---
 
