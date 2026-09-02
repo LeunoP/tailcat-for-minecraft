@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "tailcat-for-minecraft",
-  "version": "",
+  "version": "0.2.0",
   "name": "Tailcat for Minecraft (Fabric)",
   "description": "Peer-to-peer LAN multiplayer over Tailscale Tailcat",
   "authors": [
