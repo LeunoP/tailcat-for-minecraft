@@ -23,8 +23,18 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 public final class McLinkClient {
     private static ScreenState state = new ScreenState();
 
+    public McLinkClient() {
+        this(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
+    }
+
     public McLinkClient(IEventBus modEventBus) {
-        modEventBus.addListener(this::onClientSetup);
+        if (modEventBus != null) {
+            modEventBus.addListener(this::onClientSetup);
+        }
+    }
+
+    public McLinkClient(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext context) {
+        this(context != null ? context.getModEventBus() : null);
     }
 
     private void onClientSetup(FMLClientSetupEvent event) {
