@@ -175,6 +175,7 @@ public final class ShareScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         int centerX = width / 2;
@@ -228,7 +229,7 @@ public final class ShareScreen extends Screen {
                         modeBadge = Component.literal("[ ").append(Component.translatable("mclink.direct")).append(" ]");
                         modeFormat = ChatFormatting.AQUA;
                     } else {
-                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.relay")).append(" / " + state.getRelayRegion() + " ]");
+                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.relay")).append(" ]");
                         modeFormat = ChatFormatting.GOLD;
                     }
 

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "mclink",
   "version": "${version}",
-  "name": "Tailcat for Minecraft",
+  "name": "Tailcat for Minecraft (Fabric)",
   "description": "Peer-to-peer LAN multiplayer over Tailscale Tailcat",
   "authors": [
     "Tailscale",

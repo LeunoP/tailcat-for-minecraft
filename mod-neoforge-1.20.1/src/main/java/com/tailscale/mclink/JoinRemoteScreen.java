@@ -62,6 +62,7 @@ public final class JoinRemoteScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         guiGraphics.drawCenteredString(font, title, width / 2, height / 2 - 58, 0xFFFFFFFF);
         guiGraphics.drawCenteredString(font, status, width / 2, height / 2 + 46, 0xFFFFAAAA);
