@@ -54,12 +54,10 @@
 저장소를 클론한 후 각 서브프로젝트 디렉토리에서 Gradle을 통해 빌드할 수 있습니다:
 
 ```bash
-# Fabric 26.2 빌드
-./gradlew :mod:build
-
-# Fabric 1.20.1 / 1.21.1 빌드
-./gradlew -p mod-1.20.1 build
-./gradlew -p mod-1.21.1 build
+# Fabric 빌드 (1.20.1, 1.21.1, 26.2)
+./gradlew -p mod-fabric-1.20.1 build
+./gradlew -p mod-fabric-1.21.1 build
+./gradlew :mod-fabric-26.2:build
 
 # Forge 빌드 (1.20.1, 1.21.1, 26.2)
 ./gradlew -p mod-forge-1.20.1 build

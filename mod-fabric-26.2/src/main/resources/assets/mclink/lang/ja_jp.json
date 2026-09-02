@@ -1,0 +1,23 @@
+{
+  "mclink.share": "Tailcatで共有",
+  "mclink.join": "Tailcatで接続",
+  "mclink.invite": "Tailcat招待コード",
+  "mclink.invite_hint": "mcl1_ Tailcat招待コードを貼り付けてください",
+  "mclink.starting": "安全なトンネルを開始中…",
+  "mclink.sharing": "Tailcat経由でワールドを共有中",
+  "mclink.copy": "招待コードをコピー",
+  "mclink.copied": "コピーしました！",
+  "mclink.stop": "共有を停止",
+  "mclink.connect": "接続",
+  "mclink.start": "共有を開始",
+  "mclink.ready": "Tailcatでワールドを共有する準備ができました",
+  "mclink.stopped_message": "ホストが共有を停止しました",
+  "mclink.stopped_status": "共有が停止されました",
+  "mclink.no_players": "接続中のプレイヤー: なし (待機中…)",
+  "mclink.connected_players": "接続中のプレイヤー (%s人)",
+  "mclink.direct": "ダイレクト",
+  "mclink.relay": "リレー",
+  "mclink.local_lan": "ローカルLAN",
+  "mclink.show": "表示",
+  "mclink.hide": "非表示"
+}

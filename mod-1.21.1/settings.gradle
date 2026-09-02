@@ -1,7 +1,0 @@
-pluginManagement {
-    repositories {
-        maven { url = 'https://maven.fabricmc.net/' }
-        gradlePluginPortal()
-    }
-}
-rootProject.name = 'tailcat-for-minecraft-1.21.1'
