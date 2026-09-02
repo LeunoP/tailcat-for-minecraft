@@ -5,4 +5,9 @@ pluginManagement {
     }
 }
 rootProject.name = 'tailcat-for-minecraft'
-include 'mod'
+
+include 'mod-26.2'
+project(':mod-26.2').projectDir = file('mod')
+
+includeBuild 'mod-1.21.1'
+includeBuild 'mod-1.20.1'

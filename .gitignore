@@ -24,3 +24,9 @@ helper/bin/
 *.log
 *.tmp
 hs_err_pid*
+*.zip
+tailcat_*.png
+tailscale_icon.png
+tailcat-upstream/
+bin/
+**/bin/

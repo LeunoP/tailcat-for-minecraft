@@ -1,0 +1,40 @@
+plugins {
+    id 'net.neoforged.moddev.legacyforge' version '2.0.146'
+}
+
+version = '0.2.0'
+group = 'com.tailscale.tailcat.minecraft'
+
+base {
+    archivesName = 'tailcat-for-minecraft-neoforge-1.20.1'
+}
+
+legacyForge {
+    version = '1.20.1-47.3.12'
+    validateAccessTransformers = true
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDir file('../mod-common/src/main/resources')
+        }
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
