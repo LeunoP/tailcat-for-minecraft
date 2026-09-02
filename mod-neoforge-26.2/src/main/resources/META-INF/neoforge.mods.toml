@@ -1,0 +1,25 @@
+modLoader="javafml"
+loaderVersion="[26,)"
+license="BSD-3-Clause"
+
+[[mods]]
+modId="mclink"
+version=""
+displayName="Tailcat for Minecraft"
+authors="Tailscale, DeepMind"
+description='''Peer-to-peer LAN multiplayer over Tailscale Tailcat'''
+logoFile="assets/mclink/textures/gui/sprites/tailcat.png"
+
+[[dependencies.mclink]]
+    modId="neoforge"
+    type="required"
+    versionRange="[26.2,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.mclink]]
+    modId="minecraft"
+    type="required"
+    versionRange="[26.2,26.3)"
+    ordering="NONE"
+    side="BOTH"

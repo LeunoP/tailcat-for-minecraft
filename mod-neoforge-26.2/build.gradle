@@ -1,0 +1,38 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.146'
+}
+
+version = '0.2.0'
+group = 'com.tailscale.tailcat.minecraft'
+
+base {
+    archivesName = 'tailcat-for-minecraft-neoforge-26.2'
+}
+
+neoForge {
+    version = '26.2.0.75'
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDir file('../mod-common/src/main/resources')
+        }
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}

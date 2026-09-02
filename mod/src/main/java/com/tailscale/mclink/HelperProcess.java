@@ -21,9 +21,11 @@ public final class HelperProcess implements AutoCloseable {
     private final Process process;
     private final AtomicBoolean closing = new AtomicBoolean();
     private final CompletableFuture<HelperEvent> ready = new CompletableFuture<>();
+    private final Consumer<String> logConsumer;
 
-    private HelperProcess(Process process, Consumer<HelperEvent> events) {
+    private HelperProcess(Process process, Consumer<HelperEvent> events, Consumer<String> logConsumer) {
         this.process = process;
+        this.logConsumer = logConsumer;
         Thread.ofVirtual().name("mclink-helper-stdout").start(() -> readStdout(events));
         Thread.ofVirtual().name("mclink-helper-stderr").start(this::drainStderr);
         process.onExit().thenAccept(p -> {
@@ -36,11 +38,15 @@ public final class HelperProcess implements AutoCloseable {
     }
 
     public static HelperProcess start(List<String> arguments, Consumer<HelperEvent> events) throws IOException {
+        return start(arguments, events, null);
+    }
+
+    public static HelperProcess start(List<String> arguments, Consumer<HelperEvent> events, Consumer<String> logConsumer) throws IOException {
         Path executable = NativeHelper.extract();
         List<String> command = new ArrayList<>();
         command.add(executable.toString());
         command.addAll(arguments);
-        return new HelperProcess(new ProcessBuilder(command).start(), events);
+        return new HelperProcess(new ProcessBuilder(command).start(), events, logConsumer);
     }
 
     public CompletableFuture<HelperEvent> ready(Duration timeout) {
@@ -71,6 +77,11 @@ public final class HelperProcess implements AutoCloseable {
             String line;
             while ((line = reader.readLine()) != null) {
                 LOG.info("{}", line);
+                if (logConsumer != null) {
+                    try {
+                        logConsumer.accept(line);
+                    } catch (Throwable ignored) {}
+                }
             }
         } catch (IOException e) {
             if (!closing.get()) {

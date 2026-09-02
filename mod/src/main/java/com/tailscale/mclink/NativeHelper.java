@@ -37,8 +37,10 @@ public final class NativeHelper {
         JsonObject sums = checksums();
         if (!sums.has(relative) || !sums.get(relative).isJsonPrimitive()) throw new IOException("Missing checksum for " + relative);
         String expected = sums.get(relative).getAsString();
-        String version = FabricLoader.getInstance().getModContainer("tailcat-for-minecraft").orElseThrow()
-                .getMetadata().getVersion().getFriendlyString();
+        String version = FabricLoader.getInstance().getModContainer("tailcat-for-minecraft")
+                .or(() -> FabricLoader.getInstance().getModContainer("mclink"))
+                .map(c -> c.getMetadata().getVersion().getFriendlyString())
+                .orElse("0.2.0");
         Path dir = FabricLoader.getInstance().getGameDir().resolve("tailcat-for-minecraft").resolve(version)
                 .resolve(platform.resourceDirectory());
         Files.createDirectories(dir);

@@ -2,6 +2,6 @@
   "required": true,
   "package": "com.tailscale.mclink.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": ["IntegratedServerAccessor"],
+  "client": ["IntegratedServerAccessor", "JoinMultiplayerScreenAccessor"],
   "injectors": { "defaultRequire": 1 }
 }
