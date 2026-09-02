@@ -1,0 +1,23 @@
+{
+  "mclink.share": "Share with Tailcat",
+  "mclink.join": "Connect with Tailcat",
+  "mclink.invite": "Tailcat Invitation",
+  "mclink.invite_hint": "Paste an mcl1_ Tailcat invitation",
+  "mclink.starting": "Starting secure tunnel…",
+  "mclink.sharing": "World is being shared via Tailcat",
+  "mclink.copy": "Copy Invitation",
+  "mclink.copied": "Copied!",
+  "mclink.stop": "Stop Sharing",
+  "mclink.connect": "Connect",
+  "mclink.start": "Start Sharing",
+  "mclink.ready": "Ready to share world via Tailcat",
+  "mclink.stopped_message": "Host has stopped sharing",
+  "mclink.stopped_status": "Sharing has been stopped",
+  "mclink.no_players": "No connected players (Waiting…)",
+  "mclink.connected_players": "Connected Players (%s)",
+  "mclink.direct": "Direct",
+  "mclink.relay": "Relay",
+  "mclink.local_lan": "Local LAN",
+  "mclink.show": "Show",
+  "mclink.hide": "Hide"
+}

@@ -6,8 +6,7 @@ pluginManagement {
 }
 rootProject.name = 'tailcat-for-minecraft'
 
-include 'mod-26.2'
-project(':mod-26.2').projectDir = file('mod')
+include 'mod-fabric-26.2'
 
-includeBuild 'mod-1.21.1'
-includeBuild 'mod-1.20.1'
+includeBuild 'mod-fabric-1.21.1'
+includeBuild 'mod-fabric-1.20.1'
