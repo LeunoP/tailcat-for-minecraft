@@ -1,7 +1,8 @@
 # Tailcat for Minecraft (테일캣 마인크래프트 모드)
 
 > [!NOTE]
-> 본 프로젝트는 [Tailscale Tailcat](https://github.com/tailscale/tailcat)을 활용하여 복잡한 포트포워딩, 하마치 설치, VPN 세팅 없이 간편하게 친구와 마인크래프트 싱글플레이 월드를 공유하고 함께 플레이할 수 있도록 제작된 클라이언트 모드입니다.
+> * **공식 원본 저장소**: [tailscale/tailcat-for-minecraft](https://github.com/tailscale/tailcat-for-minecraft)
+> * 본 프로젝트는 [Tailscale Tailcat](https://github.com/tailscale/tailcat)을 활용하여 복잡한 포트포워딩, 하마치 설치, VPN 세팅 없이 간편하게 친구와 마인크래프트 싱글플레이 월드를 공유하고 함께 플레이할 수 있도록 제작된 클라이언트 모드입니다.
 
 별도의 Tailscale 앱 설치나 TUN 가상 네트워크 어댑터 생성 없이, 모드에 내장된 유저스페이스(Go) 엔진을 통해 **P2P WireGuard 직접 연결(NAT Traversal) 및 릴레이(DERP)** 전송을 안전하게 수행합니다.
 
