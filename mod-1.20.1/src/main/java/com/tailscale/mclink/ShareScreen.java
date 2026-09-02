@@ -233,7 +233,7 @@ public final class ShareScreen extends Screen {
                         modeBadge = Text.literal("[ ").append(Text.translatable("mclink.direct")).append(" ]");
                         modeFormat = Formatting.AQUA;
                     } else {
-                        modeBadge = Text.literal("[ ").append(Text.translatable("mclink.relay")).append(" / " + state.getRelayRegion() + " ]");
+                        modeBadge = Text.literal("[ ").append(Text.translatable("mclink.relay")).append(" ]");
                         modeFormat = Formatting.GOLD;
                     }
 

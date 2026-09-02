@@ -231,7 +231,7 @@ public final class ShareScreen extends Screen {
                         modeBadge = Component.literal("[ ").append(Component.translatable("mclink.direct")).append(" ]");
                         modeFormat = net.minecraft.ChatFormatting.AQUA;
                     } else {
-                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.relay")).append(" / " + state.getRelayRegion() + " ]");
+                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.relay")).append(" ]");
                         modeFormat = net.minecraft.ChatFormatting.GOLD;
                     }
 
