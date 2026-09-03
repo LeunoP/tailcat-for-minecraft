@@ -109,7 +109,11 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 0 || "invite".equalsIgnoreCase(args[0])) {
+        if (args.length > 0 && "invite".equalsIgnoreCase(args[0])) {
+            if (!sender.hasPermission("tailcat.admin")) {
+                sender.sendMessage(ChatColor.RED + "[Tailcat] 권한이 없습니다.");
+                return true;
+            }
             if (currentInvite != null) {
                 sender.sendMessage(ChatColor.GREEN + "[Tailcat] " + ChatColor.WHITE + "초대 코드: " + ChatColor.YELLOW + currentInvite);
                 sender.sendMessage(ChatColor.GRAY + "(채팅창의 코드를 복사하거나 서버 루트의 'tailcat_invite.txt' 파일을 확인하세요)");
@@ -119,15 +123,41 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
             return true;
         }
 
-        if ("status".equalsIgnoreCase(args[0])) {
-            boolean active = helperProcess != null && helperProcess.isAlive() && currentInvite != null;
-            sender.sendMessage(ChatColor.GREEN + "[Tailcat] " + ChatColor.WHITE + "상태: " + 
-                (active ? ChatColor.GREEN + "활성화됨 (포트 " + currentPort + ")" : ChatColor.RED + "비활성화됨"));
-            return true;
+        // /tailcat or /tailcat status
+        boolean isAdmin = sender.hasPermission("tailcat.admin");
+        if (isAdmin) {
+            sender.sendMessage(ChatColor.GOLD + "=== [Tailcat 연결 상태 (전체)] ===");
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                sender.sendMessage(formatPlayerLine(player));
+            }
+        } else if (sender instanceof Player player) {
+            sender.sendMessage(formatPlayerLine(player));
+        } else {
+            sender.sendMessage(ChatColor.GRAY + "콘솔에서는 모든 유저 정보를 확인하려면 관리자 권한이 필요합니다.");
         }
-
-        sender.sendMessage(ChatColor.YELLOW + "사용법: /" + label + " [invite|status]");
         return true;
+    }
+
+    private String formatPlayerLine(Player player) {
+        int ping = player.getPing();
+        String connType = resolveConnectionType(player);
+        ChatColor typeColor = "다이렉트".equals(connType) ? ChatColor.AQUA : ChatColor.YELLOW;
+
+        return ChatColor.GRAY + "[ " + ChatColor.GREEN + player.getName() + ChatColor.GRAY + " ] " +
+               ChatColor.WHITE + ping + "ms " + ChatColor.GRAY + "/ " + typeColor + connType;
+    }
+
+    private String resolveConnectionType(Player player) {
+        if (player.getAddress() != null) {
+            String ip = player.getAddress().getAddress().getHostAddress();
+            if ("127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip)) {
+                return "다이렉트";
+            }
+            if (!ip.startsWith("100.") && !ip.startsWith("fd7a:")) {
+                return "다이렉트";
+            }
+        }
+        return "릴레이";
     }
 
     @Override
