@@ -18,7 +18,7 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.GameShuttingDownEvent;
 
-@Mod("mclink")
+// Client-only event subscriber
 @EventBusSubscriber(modid = "mclink", value = Dist.CLIENT)
 public final class McLinkClient {
     private static ScreenState state = new ScreenState();

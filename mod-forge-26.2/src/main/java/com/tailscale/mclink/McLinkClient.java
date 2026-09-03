@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-@Mod("mclink")
+// Client-only
 public final class McLinkClient {
     private static final ScreenState state = new ScreenState();
 

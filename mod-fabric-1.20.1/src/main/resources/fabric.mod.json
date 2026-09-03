@@ -18,6 +18,9 @@
   "entrypoints": {
     "client": [
       "com.tailscale.mclink.McLinkClient"
+    ],
+    "server": [
+      "com.tailscale.mclink.TailcatServerInitializer"
     ]
   },
   "mixins": [

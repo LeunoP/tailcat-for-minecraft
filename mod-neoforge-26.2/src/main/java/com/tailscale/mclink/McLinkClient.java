@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-@Mod("mclink")
+// Client-only event subscriber
 @EventBusSubscriber(modid = "mclink", value = Dist.CLIENT)
 public final class McLinkClient {
     private static ScreenState state = new ScreenState();
