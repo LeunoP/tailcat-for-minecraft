@@ -14,8 +14,8 @@
   },
   "license": "BSD-3-Clause",
   "icon": "assets/mclink/textures/gui/sprites/tailcat.png",
-  "environment": "client",
-  "entrypoints": { "client": ["com.tailscale.mclink.McLinkClient"] },
+  "environment": "*",
+  "entrypoints": { "client": ["com.tailscale.mclink.McLinkClient"], "server": ["com.tailscale.mclink.TailcatServerInitializer"] },
   "mixins": ["mclink.mixins.json"],
   "depends": {
     "fabricloader": ">=0.19.3",

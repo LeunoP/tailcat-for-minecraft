@@ -32,6 +32,8 @@ public final class McLinkClient {
         ScreenEvent.Init.Post.BUS.addListener(this::onScreenInit);
         TickEvent.ClientTickEvent.Post.BUS.addListener(this::onClientTick);
         GameShuttingDownEvent.BUS.addListener(event -> state.close());
+        net.minecraftforge.event.server.ServerStartedEvent.BUS.addListener(event -> ServerShareHandler.onServerStarted(event.getServer()));
+        net.minecraftforge.event.server.ServerStoppingEvent.BUS.addListener(event -> ServerShareHandler.onServerStopping(event.getServer()));
     }
 
     public static ScreenState state() {
