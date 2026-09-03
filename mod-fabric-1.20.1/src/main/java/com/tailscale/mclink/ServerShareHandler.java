@@ -54,7 +54,7 @@ public final class ServerShareHandler {
         }
     }
 
-    public static synchronized void onServerStopping(MinecraftServer server) {
+    public static synchronized void onServerStopped(MinecraftServer server) {
         if (!running.compareAndSet(true, false)) {
             return;
         }
