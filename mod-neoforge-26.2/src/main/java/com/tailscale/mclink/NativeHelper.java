@@ -38,8 +38,7 @@ public final class NativeHelper {
         if (!sums.has(relative) || !sums.get(relative).isJsonPrimitive()) throw new IOException("Missing checksum for " + relative);
         String expected = sums.get(relative).getAsString();
         String version = "0.2.0";
-        Path gameDir = net.minecraft.client.Minecraft.getInstance() != null ? net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath() : Path.of(".");
-        Path dir = gameDir.resolve("tailcat-for-minecraft").resolve(version)
+        Path dir = net.neoforged.fml.loading.FMLPaths.GAMEDIR.get().resolve("tailcat-for-minecraft").resolve(version)
                 .resolve(platform.resourceDirectory());
         Files.createDirectories(dir);
         Path destination = dir.resolve(platform.executableName());
