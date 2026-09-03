@@ -8,6 +8,6 @@ public final class TailcatServerInitializer implements DedicatedServerModInitial
     public void onInitializeServer() {
         net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback.EVENT.register(TailcatCommands::register);
         ServerLifecycleEvents.SERVER_STARTED.register(ServerShareHandler::onServerStarted);
-        ServerLifecycleEvents.SERVER_STOPPING.register(ServerShareHandler::onServerStopping);
+        ServerLifecycleEvents.SERVER_STOPPED.register(ServerShareHandler::onServerStopped);
     }
 }

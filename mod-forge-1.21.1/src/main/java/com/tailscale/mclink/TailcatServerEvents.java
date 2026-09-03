@@ -2,7 +2,7 @@ package com.tailscale.mclink;
 
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -19,7 +19,7 @@ public final class TailcatServerEvents {
     }
 
     @SubscribeEvent
-    public static void onServerStopping(ServerStoppingEvent event) {
-        ServerShareHandler.onServerStopping(event.getServer());
+    public static void onServerStopping(ServerStoppedEvent event) {
+        ServerShareHandler.onServerStopped(event.getServer());
     }
 }
