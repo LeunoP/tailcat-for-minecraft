@@ -55,44 +55,46 @@ public final class TailcatCommands {
         boolean isAdmin = source.hasPermission(2);
 
         if (isAdmin) {
-            source.sendSuccess(() -> Component.literal("=== [Tailcat 연결 상태 (전체)] ===").withStyle(ChatFormatting.GOLD), false);
+            source.sendSuccess(() -> Component.literal("=== [Tailcat 연결 상태] ===").withStyle(ChatFormatting.GOLD), false);
+            int count = 0;
             for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
-                source.sendSuccess(() -> formatPlayerLine(player), false);
+                if (isTailcatPlayer(player)) {
+                    source.sendSuccess(() -> formatPlayerLine(player), false);
+                    count++;
+                }
+            }
+            if (count == 0) {
+                source.sendSuccess(() -> Component.literal("Tailcat으로 연결된 플레이어가 없습니다.").withStyle(ChatFormatting.GRAY), false);
             }
         } else if (executingPlayer != null) {
-            source.sendSuccess(() -> formatPlayerLine(executingPlayer), false);
+            if (isTailcatPlayer(executingPlayer)) {
+                source.sendSuccess(() -> formatPlayerLine(executingPlayer), false);
+            } else {
+                source.sendSuccess(() -> Component.literal("Tailcat으로 연결되어 있지 않습니다.").withStyle(ChatFormatting.GRAY), false);
+            }
         } else {
             source.sendSuccess(() -> Component.literal("콘솔에서는 모든 유저 정보를 확인하려면 관리자 권한이 필요합니다.").withStyle(ChatFormatting.GRAY), false);
         }
         return 1;
     }
 
+    private static boolean isTailcatPlayer(ServerPlayer player) {
+        if (player.connection == null) return false;
+        SocketAddress sa = player.connection.getRemoteAddress();
+        if (sa instanceof InetSocketAddress isa) {
+            String ip = isa.getAddress().getHostAddress();
+            return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
+        }
+        return false;
+    }
+
     private static Component formatPlayerLine(ServerPlayer player) {
         int ping = player.connection != null ? player.latency : 0;
-        String connType = resolveConnectionType(player);
-        ChatFormatting typeColor = "다이렉트".equals(connType) ? ChatFormatting.AQUA : ChatFormatting.YELLOW;
 
         return Component.literal("[ ")
             .withStyle(ChatFormatting.GRAY)
             .append(Component.literal(player.getScoreboardName()).withStyle(ChatFormatting.GREEN))
             .append(Component.literal(" ] ").withStyle(ChatFormatting.GRAY))
-            .append(Component.literal(ping + "ms").withStyle(ChatFormatting.WHITE))
-            .append(Component.literal(" / ").withStyle(ChatFormatting.GRAY))
-            .append(Component.literal(connType).withStyle(typeColor));
-    }
-
-    private static String resolveConnectionType(ServerPlayer player) {
-        if (player.connection == null) return "알 수 없음";
-        SocketAddress sa = player.connection.getRemoteAddress();
-        if (sa instanceof InetSocketAddress isa) {
-            String ip = isa.getAddress().getHostAddress();
-            if ("127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip)) {
-                return "다이렉트";
-            }
-            if (!ip.startsWith("100.") && !ip.startsWith("fd7a:")) {
-                return "다이렉트";
-            }
-        }
-        return "릴레이";
+            .append(Component.literal(ping + "ms").withStyle(ChatFormatting.WHITE));
     }
 }

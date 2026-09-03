@@ -40,7 +40,7 @@ public final class ServerShareHandler {
                 } else if ("error".equals(event.type())) {
                     LOG.error("Tailcat helper error: {} ({})", event.message(), event.code());
                 }
-            }, line -> LOG.info("[Helper] {}", line));
+            });
 
             helperProcess.ready(Duration.ofSeconds(20)).whenComplete((readyEvent, err) -> {
                 if (err != null) {

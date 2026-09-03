@@ -2,7 +2,7 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.146'
 }
 
-version = '0.2.0'
+version = '0.2.1'
 group = 'com.tailscale.tailcat.minecraft'
 
 base {

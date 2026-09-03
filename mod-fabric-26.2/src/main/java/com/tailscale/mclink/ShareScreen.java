@@ -219,26 +219,9 @@ public final class ShareScreen extends Screen {
                     int latency = player.connection.latency();
                     net.minecraft.ChatFormatting pingFormat = latency < 80 ? net.minecraft.ChatFormatting.GREEN : (latency < 160 ? net.minecraft.ChatFormatting.YELLOW : net.minecraft.ChatFormatting.RED);
 
-                    String ip = player.getIpAddress();
-                    boolean isTailcatProxy = "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip);
-
-                    Component modeBadge;
-                    net.minecraft.ChatFormatting modeFormat;
-                    if (!isTailcatProxy) {
-                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.local_lan")).append(" ]");
-                        modeFormat = net.minecraft.ChatFormatting.AQUA;
-                    } else if (mode == ScreenState.TransportMode.DIRECT) {
-                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.direct")).append(" ]");
-                        modeFormat = net.minecraft.ChatFormatting.AQUA;
-                    } else {
-                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.relay")).append(" ]");
-                        modeFormat = net.minecraft.ChatFormatting.GOLD;
-                    }
-
                     net.minecraft.network.chat.MutableComponent line = Component.literal("• " + player.getScoreboardName() + "   ")
                             .withStyle(net.minecraft.ChatFormatting.WHITE)
-                            .append(Component.literal(latency + "ms   ").withStyle(pingFormat))
-                            .append(modeBadge.copy().withStyle(modeFormat));
+                            .append(Component.literal(latency + "ms").withStyle(pingFormat));
 
                     extractor.centeredText(this.font, line, centerX, playerY, 0xFFFFFFFF);
                     playerY += 14;
