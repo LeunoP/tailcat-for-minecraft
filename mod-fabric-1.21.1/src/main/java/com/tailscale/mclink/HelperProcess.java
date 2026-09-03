@@ -21,7 +21,6 @@ public final class HelperProcess implements AutoCloseable {
     private final Process process;
     private final AtomicBoolean closing = new AtomicBoolean();
     private final CompletableFuture<HelperEvent> ready = new CompletableFuture<>();
-
     private final Consumer<String> logConsumer;
 
     private HelperProcess(Process process, Consumer<HelperEvent> events, Consumer<String> logConsumer) {
@@ -66,27 +65,31 @@ public final class HelperProcess implements AutoCloseable {
                 }
                 events.accept(event);
             }
-        } catch (IOException error) {
+        } catch (Exception e) {
             if (!closing.get()) {
-                LOG.error("failed reading helper stdout", error);
+                ready.completeExceptionally(e);
             }
         }
     }
 
     private void drainStderr() {
-        try (BufferedReader reader = process.errorReader(StandardCharsets.UTF_8)) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                LOG.info("{}", line);
+                // Ignore routine Wireguard handshake/keepalive logs that spam the console
+                if (line.contains("wg: [v2] peer") || line.contains("Receiving keepalive") || line.contains("handshake")) {
+                    continue;
+                }
+                LOG.debug("{}", line);
                 if (logConsumer != null) {
                     try {
                         logConsumer.accept(line);
                     } catch (Throwable ignored) {}
                 }
             }
-        } catch (IOException error) {
+        } catch (IOException e) {
             if (!closing.get()) {
-                LOG.error("failed reading helper stderr", error);
+                LOG.warn("Could not drain helper stderr", e);
             }
         }
     }
