@@ -1,7 +1,7 @@
 name: Tailcat
 version: ''
 main: com.tailscale.mclink.TailcatPlugin
-api-version: '1.20'
+api-version: '1.13'
 authors: [Tailscale, DeepMind]
 description: Peer-to-peer LAN multiplayer over Tailscale Tailcat
 commands:
