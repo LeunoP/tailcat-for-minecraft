@@ -208,26 +208,9 @@ public final class ShareScreen extends Screen {
                     int latency = player.latency;
                     ChatFormatting pingFormat = latency < 80 ? ChatFormatting.GREEN : (latency < 160 ? ChatFormatting.YELLOW : ChatFormatting.RED);
 
-                    String ip = player.getIpAddress();
-                    boolean isTailcatProxy = "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip);
-
-                    Component modeBadge;
-                    ChatFormatting modeFormat;
-                    if (!isTailcatProxy) {
-                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.local_lan")).append(" ]");
-                        modeFormat = ChatFormatting.AQUA;
-                    } else if (mode == ScreenState.TransportMode.DIRECT) {
-                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.direct")).append(" ]");
-                        modeFormat = ChatFormatting.AQUA;
-                    } else {
-                        modeBadge = Component.literal("[ ").append(Component.translatable("mclink.relay")).append(" ]");
-                        modeFormat = ChatFormatting.GOLD;
-                    }
-
                     MutableComponent line = Component.literal("\u2022 " + player.getScoreboardName() + "   ")
                             .withStyle(ChatFormatting.WHITE)
-                            .append(Component.literal(latency + "ms   ").withStyle(pingFormat))
-                            .append(modeBadge.copy().withStyle(modeFormat));
+                            .append(Component.literal(latency + "ms").withStyle(pingFormat));
 
                     guiGraphics.drawCenteredString(this.font, line, centerX, playerY, 0xFFFFFFFF);
                     playerY += 14;

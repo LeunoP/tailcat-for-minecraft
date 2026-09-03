@@ -39,6 +39,11 @@ public final class PluginHelperProcess implements AutoCloseable {
     }
 
     public static PluginHelperProcess start(Path dataFolder, String version, List<String> arguments,
+                                            Consumer<HelperEvent> events) throws IOException {
+        return start(dataFolder, version, arguments, events, null);
+    }
+
+    public static PluginHelperProcess start(Path dataFolder, String version, List<String> arguments,
                                             Consumer<HelperEvent> events, Consumer<String> logConsumer) throws IOException {
         Path executable = PluginNativeHelper.extract(dataFolder, version);
         List<String> command = new ArrayList<>();

@@ -2,7 +2,7 @@ plugins {
     id 'fabric-loom' version '1.10.5'
 }
 
-version = '0.2.0'
+version = '0.2.1'
 group = 'com.tailscale.tailcat.minecraft'
 
 base {

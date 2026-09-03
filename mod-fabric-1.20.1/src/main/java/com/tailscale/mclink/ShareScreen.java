@@ -221,26 +221,9 @@ public final class ShareScreen extends Screen {
                     int latency = player.pingMilliseconds;
                     Formatting pingFormat = latency < 80 ? Formatting.GREEN : (latency < 160 ? Formatting.YELLOW : Formatting.RED);
 
-                    String ip = player.getIp();
-                    boolean isTailcatProxy = "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip);
-
-                    Text modeBadge;
-                    Formatting modeFormat;
-                    if (!isTailcatProxy) {
-                        modeBadge = Text.literal("[ ").append(Text.translatable("mclink.local_lan")).append(" ]");
-                        modeFormat = Formatting.AQUA;
-                    } else if (mode == ScreenState.TransportMode.DIRECT) {
-                        modeBadge = Text.literal("[ ").append(Text.translatable("mclink.direct")).append(" ]");
-                        modeFormat = Formatting.AQUA;
-                    } else {
-                        modeBadge = Text.literal("[ ").append(Text.translatable("mclink.relay")).append(" ]");
-                        modeFormat = Formatting.GOLD;
-                    }
-
                     MutableText line = Text.literal("• " + player.getName().getString() + "   ")
                             .formatted(Formatting.WHITE)
-                            .append(Text.literal(latency + "ms   ").formatted(pingFormat))
-                            .append(modeBadge.copy().formatted(modeFormat));
+                            .append(Text.literal(latency + "ms").formatted(pingFormat));
 
                     context.drawCenteredTextWithShadow(this.textRenderer, line, centerX, playerY, 0xFFFFFFFF);
                     playerY += 14;
