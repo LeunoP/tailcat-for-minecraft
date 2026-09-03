@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -25,12 +26,8 @@ public final class HelperProcess implements AutoCloseable {
     private HelperProcess(Process process, Consumer<HelperEvent> events, Consumer<String> logConsumer) {
         this.process = process;
         this.logConsumer = logConsumer;
-        Thread t1 = new Thread(() -> readStdout(events), "mclink-helper-stdout");
-        t1.setDaemon(true);
-        t1.start();
-        Thread t2 = new Thread(this::drainStderr, "mclink-helper-stderr");
-        t2.setDaemon(true);
-        t2.start();
+        Thread tOut = new Thread(() -> readStdout(events), "mclink-helper-stdout"); tOut.setDaemon(true); tOut.start();
+        Thread tErr = new Thread(this::drainStderr, "mclink-helper-stderr"); tErr.setDaemon(true); tErr.start();
         process.onExit().thenAccept(p -> {
             if (!closing.get()) {
                 IOException failure = new IOException("helper exited unexpectedly (status " + p.exitValue() + ")");
@@ -68,27 +65,31 @@ public final class HelperProcess implements AutoCloseable {
                 }
                 events.accept(event);
             }
-        } catch (IOException error) {
+        } catch (Exception e) {
             if (!closing.get()) {
-                LOG.error("failed reading helper stdout", error);
+                ready.completeExceptionally(e);
             }
         }
     }
 
     private void drainStderr() {
-        try (BufferedReader reader = process.errorReader(StandardCharsets.UTF_8)) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                LOG.info("{}", line);
+                // Ignore routine Wireguard handshake/keepalive logs that spam the console
+                if (line.contains("wg: [v2] peer") || line.contains("Receiving keepalive") || line.contains("handshake")) {
+                    continue;
+                }
+                LOG.debug("{}", line);
                 if (logConsumer != null) {
                     try {
                         logConsumer.accept(line);
                     } catch (Throwable ignored) {}
                 }
             }
-        } catch (IOException error) {
+        } catch (IOException e) {
             if (!closing.get()) {
-                LOG.error("failed reading helper stderr", error);
+                LOG.warn("Could not drain helper stderr", e);
             }
         }
     }
@@ -102,14 +103,20 @@ public final class HelperProcess implements AutoCloseable {
         if (!closing.compareAndSet(false, true)) {
             return;
         }
-        process.destroy();
         try {
-            if (!process.waitFor(1, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
+            process.getOutputStream().close();
+            if (!process.waitFor(3, TimeUnit.SECONDS)) {
+                process.destroy();
+                if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                    process.destroyForcibly();
+                }
             }
-        } catch (InterruptedException ignored) {
-            Thread.currentThread().interrupt();
+        } catch (InterruptedException e) {
             process.destroyForcibly();
+            Thread.currentThread().interrupt();
+        } catch (IOException e) {
+            process.destroyForcibly();
+            LOG.warn("Could not close helper stdin", e);
         }
     }
 }

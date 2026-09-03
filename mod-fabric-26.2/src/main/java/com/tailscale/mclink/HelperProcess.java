@@ -76,7 +76,11 @@ public final class HelperProcess implements AutoCloseable {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                LOG.info("{}", line);
+                // Ignore routine Wireguard handshake/keepalive logs that spam the console
+                if (line.contains("wg: [v2] peer") || line.contains("Receiving keepalive") || line.contains("handshake")) {
+                    continue;
+                }
+                LOG.debug("{}", line);
                 if (logConsumer != null) {
                     try {
                         logConsumer.accept(line);
