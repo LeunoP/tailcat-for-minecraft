@@ -6,10 +6,12 @@ authors: [Tailscale, DeepMind]
 description: Peer-to-peer LAN multiplayer over Tailscale Tailcat
 commands:
   tailcat:
-    description: Manage Tailcat tunnel and invitation code
-    permission: tailcat.admin
+    description: Manage Tailcat tunnel and view status
     usage: /<command> [invite|status]
 permissions:
+  tailcat.status:
+    description: Allows viewing personal Tailcat connection status
+    default: true
   tailcat.admin:
-    description: Allows viewing and managing Tailcat invitation code
+    description: Allows viewing and managing Tailcat invitation code and full player list
     default: op
