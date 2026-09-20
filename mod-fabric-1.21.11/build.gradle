@@ -1,0 +1,55 @@
+plugins {
+    id 'fabric-loom' version '1.17.20'
+}
+
+version = '0.2.1'
+group = 'com.tailscale.tailcat.minecraft'
+
+base {
+    archivesName = 'tailcat-for-minecraft-fabric-1.21.11'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:1.21.11"
+    mappings "net.fabricmc:yarn:1.21.11+build.6:v2"
+    modImplementation "net.fabricmc:fabric-loader:0.18.6"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.141.6+1.21.11"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDir file('../mod-common/src/main/resources')
+        }
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+test {
+    useJUnitPlatform()
+}
+
+tasks.named('sourcesJar') {
+    exclude 'assets/mclink/native/**'
+}
