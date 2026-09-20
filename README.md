@@ -27,6 +27,7 @@
 
 | 마인크래프트 버전 | Fabric | Forge | NeoForge | 지원 Java 버전 |
 |:---:|:---:|:---:|:---:|:---:|
+| 1.21.11 | 지원 | 지원 | 지원 | Java 21+ |
 | 1.20.1 | 지원 | 지원 | 지원 (LegacyForge) | Java 17+ |
 | 1.21.1 | 지원 | 지원 | 지원 | Java 21+ |
 | 26.2 | 지원 | 지원 | 지원 | Java 21+ (빌드 25) |
@@ -76,16 +77,19 @@
 # Fabric 모듈 빌드
 ./gradlew -p mod-fabric-1.20.1 build
 ./gradlew -p mod-fabric-1.21.1 build
+./gradlew -p mod-fabric-1.21.11 build
 ./gradlew :mod-fabric-26.2:build
 
 # Forge 모듈 빌드
 ./gradlew -p mod-forge-1.20.1 build
 ./gradlew -p mod-forge-1.21.1 build
+./gradlew -p mod-forge-1.21.11 build
 ./gradlew -p mod-forge-26.2 build
 
 # NeoForge 모듈 빌드
 ./gradlew -p mod-neoforge-1.20.1 build
 ./gradlew -p mod-neoforge-1.21.1 build
+./gradlew -p mod-neoforge-1.21.11 build
 ./gradlew -p mod-neoforge-26.2 build
 
 # Paper 플러그인 빌드
