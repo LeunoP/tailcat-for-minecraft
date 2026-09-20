@@ -55,7 +55,6 @@ public final class JoinRemoteScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, height / 2 - 58, 0xffffff);
         context.drawCenteredTextWithShadow(textRenderer, status, width / 2, height / 2 + 46, 0xffaaaa);
