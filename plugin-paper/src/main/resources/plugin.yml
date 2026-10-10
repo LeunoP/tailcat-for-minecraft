@@ -1,5 +1,5 @@
 name: Tailcat
-version: ''
+version: '${version}'
 main: com.tailscale.mclink.TailcatPlugin
 api-version: '1.13'
 authors: [Tailscale, DeepMind]
@@ -7,7 +7,7 @@ description: Peer-to-peer LAN multiplayer over Tailscale Tailcat
 commands:
   tailcat:
     description: Manage Tailcat tunnel and view status
-    usage: /<command> [invite|status]
+    usage: /<command> [invite|status|start|stop|restart]
 permissions:
   tailcat.status:
     description: Allows viewing personal Tailcat connection status

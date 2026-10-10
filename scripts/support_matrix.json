@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "targets": [
+    {
+      "module": "mod-fabric-1.20.1",
+      "minecraft": "1.20.1",
+      "loader": "fabric",
+      "build_java": 21,
+      "runtime_java": 17,
+      "wrapper": ".",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-forge-1.20.1",
+      "minecraft": "1.20.1",
+      "loader": "forge",
+      "build_java": 21,
+      "runtime_java": 17,
+      "wrapper": "mod-forge-1.20.1",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-neoforge-1.20.1",
+      "minecraft": "1.20.1",
+      "loader": "neoforge",
+      "build_java": 21,
+      "runtime_java": 17,
+      "wrapper": ".",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-fabric-1.21.1",
+      "minecraft": "1.21.1",
+      "loader": "fabric",
+      "build_java": 21,
+      "runtime_java": 21,
+      "wrapper": ".",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-forge-1.21.1",
+      "minecraft": "1.21.1",
+      "loader": "forge",
+      "build_java": 21,
+      "runtime_java": 21,
+      "wrapper": "mod-forge-1.21.1",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-neoforge-1.21.1",
+      "minecraft": "1.21.1",
+      "loader": "neoforge",
+      "build_java": 21,
+      "runtime_java": 21,
+      "wrapper": ".",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-fabric-1.21.11",
+      "minecraft": "1.21.11",
+      "loader": "fabric",
+      "build_java": 21,
+      "runtime_java": 21,
+      "wrapper": ".",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-forge-1.21.11",
+      "minecraft": "1.21.11",
+      "loader": "forge",
+      "build_java": 21,
+      "runtime_java": 21,
+      "wrapper": "mod-forge-1.21.11",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-neoforge-1.21.11",
+      "minecraft": "1.21.11",
+      "loader": "neoforge",
+      "build_java": 21,
+      "runtime_java": 21,
+      "wrapper": ".",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-fabric-26.2",
+      "minecraft": "26.2",
+      "loader": "fabric",
+      "build_java": 25,
+      "runtime_java": 25,
+      "wrapper": ".",
+      "mod_id": "tailcat-for-minecraft"
+    },
+    {
+      "module": "mod-forge-26.2",
+      "minecraft": "26.2",
+      "loader": "forge",
+      "build_java": 25,
+      "runtime_java": 25,
+      "wrapper": ".",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-neoforge-26.2",
+      "minecraft": "26.2",
+      "loader": "neoforge",
+      "build_java": 25,
+      "runtime_java": 25,
+      "wrapper": ".",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-fabric-26.3",
+      "minecraft": "26.3",
+      "loader": "fabric",
+      "build_java": 25,
+      "runtime_java": 25,
+      "wrapper": "mod-fabric-26.3",
+      "mod_id": "tailcat-for-minecraft"
+    },
+    {
+      "module": "mod-forge-26.3",
+      "minecraft": "26.3",
+      "loader": "forge",
+      "build_java": 25,
+      "runtime_java": 25,
+      "wrapper": "mod-forge-26.3",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "mod-neoforge-26.3",
+      "minecraft": "26.3",
+      "loader": "neoforge",
+      "build_java": 25,
+      "runtime_java": 25,
+      "wrapper": "mod-neoforge-26.3",
+      "mod_id": "mclink"
+    },
+    {
+      "module": "plugin-paper",
+      "minecraft": "server API 1.20.1",
+      "loader": "paper",
+      "build_java": 21,
+      "runtime_java": 17,
+      "wrapper": ".",
+      "mod_id": "Tailcat"
+    }
+  ]
+}

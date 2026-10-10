@@ -3,107 +3,57 @@ package com.tailscale.mclink;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.SocketAddress;
 import java.time.Duration;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public final class ServerShareHandler {
     private static final Logger LOG = LoggerFactory.getLogger("Tailcat/Server");
-    private static HelperProcess helperProcess;
-    private static Path inviteFile;
-    private static String currentInvite;
-    private static final AtomicBoolean running = new AtomicBoolean(false);
-
+    private static MinecraftServer owner;
+    private static ServerTunnelController<HelperProcess> tunnel;
     private ServerShareHandler() {}
 
     public static synchronized void onServerStarted(MinecraftServer server) {
-        if (!running.compareAndSet(false, true)) {
-            return;
-        }
-
-        final int port = server.getServerPort() > 0 ? server.getServerPort() : 25565;
-
-        LOG.info("Initializing Tailcat tunnel for dedicated server on port {}...", port);
-
-        try {
-            List<String> args = List.of("host", "--target", "127.0.0.1:" + port);
-            helperProcess = HelperProcess.start(args, event -> {
-                if ("ready".equals(event.type()) && event.invite() != null) {
-                    currentInvite = event.invite();
-                    printBanner(currentInvite, port);
-                    writeInviteFile(currentInvite);
-                } else if ("error".equals(event.type())) {
-                    LOG.error("Tailcat helper error: {} ({})", event.message(), event.code());
-                }
-            });
-
-            helperProcess.ready(Duration.ofSeconds(20)).whenComplete((readyEvent, err) -> {
-                if (err != null) {
-                    LOG.error("Failed to start Tailcat helper: {}", err.getMessage());
-                }
-            });
-
-        } catch (Exception e) {
-            LOG.error("Could not start Tailcat server tunnel: {}", e.getMessage(), e);
-            running.set(false);
-        }
+        if (!server.isDedicated()) return;
+        if (owner == server && tunnel != null) return;
+        if (tunnel != null) tunnel.close();
+        owner = server;
+        tunnel = new ServerTunnelController<>(server::execute,
+                (args, relayOnly, events, logs) -> HelperProcess.start(args, events, logs, relayOnly),
+                HelperProcess::isAlive, HelperProcess::closed, process -> process.ready(Duration.ofSeconds(120)),
+                Path.of("config", "tailcat-server.json"), Path.of("tailcat_invite.txt"),
+                Path.of("tailcat-for-minecraft", "diagnostics"),
+                BuildIdentity.metadata("mod-fabric-1.20.1"), LOG::info, LOG::warn);
+        tunnel.onStop(owns -> {
+            for (var player : server.getPlayerManager().getPlayerList()) {
+                if (player.networkHandler != null && owns.test(player.networkHandler.getConnectionAddress()))
+                    player.networkHandler.disconnect(net.minecraft.text.Text.translatable("mclink.stopped_message"));
+            }
+        });
+        tunnel.initialize(port(server));
     }
 
     public static synchronized void onServerStopped(MinecraftServer server) {
-        if (!running.compareAndSet(true, false)) {
-            return;
-        }
-
-        LOG.info("Stopping Tailcat server tunnel...");
-        if (helperProcess != null) {
-            try {
-                helperProcess.close();
-            } catch (Exception e) {
-                LOG.warn("Error closing helper process: {}", e.getMessage());
-            }
-            helperProcess = null;
-        }
-
-        deleteInviteFile();
-        currentInvite = null;
-        LOG.info("Tailcat server tunnel stopped.");
+        if (owner != server) return;
+        if (tunnel != null) tunnel.close();
+        tunnel = null; owner = null;
     }
 
-    private static void printBanner(String invite, int port) {
-        LOG.info("==================================================================");
-        LOG.info("  [Tailcat] Dedicated Server successfully shared via Tailcat!");
-        LOG.info("  [Tailcat] Local Port: {}", port);
-        LOG.info("  [Tailcat] Invitation Code (Share with friends):");
-        LOG.info("  >>> {} <<<", invite);
-        LOG.info("  [Tailcat] Saved to 'tailcat_invite.txt' in server directory");
-        LOG.info("==================================================================");
+    public static synchronized CompletableFuture<?> operate(MinecraftServer server, String action) {
+        if (owner != server || tunnel == null) return CompletableFuture.failedFuture(new IllegalStateException("Tailcat dedicated-server service is unavailable"));
+        return switch (action) {
+            case "start" -> tunnel.start(port(server));
+            case "stop" -> tunnel.stop();
+            case "restart" -> tunnel.restart(port(server));
+            case "diagnose" -> tunnel.diagnose();
+            default -> CompletableFuture.failedFuture(new IllegalArgumentException("Unknown Tailcat action"));
+        };
     }
 
-    private static void writeInviteFile(String invite) {
-        try {
-            inviteFile = Path.of("tailcat_invite.txt").toAbsolutePath();
-            Files.writeString(inviteFile, invite, StandardCharsets.UTF_8);
-            inviteFile.toFile().deleteOnExit();
-        } catch (IOException e) {
-            LOG.warn("Failed to write tailcat_invite.txt: {}", e.getMessage());
-        }
-    }
-
-    private static void deleteInviteFile() {
-        if (inviteFile != null) {
-            try {
-                Files.deleteIfExists(inviteFile);
-            } catch (IOException ignored) {}
-            inviteFile = null;
-        }
-    }
-
-    public static String getCurrentInvite() {
-        return currentInvite;
-    }
+    private static int port(MinecraftServer server) { return server.getServerPort() > 0 ? server.getServerPort() : 25565; }
+    public static synchronized String getCurrentInvite() { return tunnel == null ? null : tunnel.invite(); }
+    public static synchronized boolean owns(SocketAddress address) { return tunnel != null && tunnel.owns(address); }
+    public static synchronized String language() { return tunnel == null ? "en_us" : tunnel.config().language(); }
 }

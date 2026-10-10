@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "refmap": "mclink.refmap.json",
+  "package": "com.tailscale.mclink.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "IntegratedServerMaxPlayersMixin",
+    "LanPublicationAccessor",
+    "LanListenersAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": []
+}

@@ -2,6 +2,9 @@ modLoader="javafml"
 loaderVersion="[4,)"
 license="BSD-3-Clause"
 
+[[mixins]]
+config="mclink.mixins.json"
+
 [[mods]]
 modId="mclink"
 version="${version}"

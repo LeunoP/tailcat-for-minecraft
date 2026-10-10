@@ -29,7 +29,7 @@ public final class McLinkClient implements ClientModInitializer {
             state.tick(client);
             String error = state.takeError();
             if (error != null) SystemToast.add(client.getToastManager(), SystemToast.Type.PERIODIC_NOTIFICATION,
-                    Text.literal("Remote LAN connection failed"), Text.literal(error));
+                    Text.translatable("mclink.connection_failed"), Text.literal(error));
         });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> state.close());
     }
@@ -49,20 +49,40 @@ public final class McLinkClient implements ClientModInitializer {
     }
 
     private static void addConnectButton(MinecraftClient client, net.minecraft.client.gui.screen.Screen screen, int width, int height) {
-        if (findButton(screen, "mclink.join") != null) return;
         ButtonWidget direct = findButton(screen, "selectServer.direct");
         if (direct == null) return;
-        int row3Y = Screens.getButtons(screen).stream().mapToInt(net.minecraft.client.gui.widget.ClickableWidget::getY).max().orElse(height - 28);
-        Screens.getButtons(screen).forEach(button -> button.setY(button.getY() - 24));
+
+        ButtonWidget connect = findButton(screen, "mclink.join");
+        int row3Y = Screens.getButtons(screen).stream()
+                .filter(button -> button != connect)
+                .mapToInt(net.minecraft.client.gui.widget.ClickableWidget::getY)
+                .max()
+                .orElse(height - 28);
+        int connectWidth = Math.min(204, Math.max(1, width - 32));
+        int connectX = (width - connectWidth) / 2;
+
+        // This callback runs once after vanilla lays out the screen. Reapply
+        // the reserved row on every init, then place a reused Tailcat button
+        // against the current dimensions rather than its previous coordinates.
+        Screens.getButtons(screen).stream()
+                .filter(button -> button != connect)
+                .forEach(button -> button.setY(button.getY() - 24));
+        if (connect != null) {
+            connect.setPosition(connectX, row3Y);
+            connect.setWidth(connectWidth);
+        }
+
         for (var child : screen.children()) {
             if (child instanceof MultiplayerServerListWidget list) {
                 list.setDimensionsAndPosition(width, height - 120, 0, 32);
                 break;
             }
         }
-        Screens.getButtons(screen).add(ButtonWidget.builder(Text.translatable("mclink.join"),
-                        button -> client.setScreen(new JoinRemoteScreen(screen)))
-                .dimensions(width / 2 - 102, row3Y, 204, 20).build());
+        if (connect == null) {
+            Screens.getButtons(screen).add(ButtonWidget.builder(Text.translatable("mclink.join"),
+                            button -> client.setScreen(new JoinRemoteScreen(screen)))
+                    .dimensions(connectX, row3Y, connectWidth, 20).build());
+        }
     }
 
     private static ButtonWidget findButton(net.minecraft.client.gui.screen.Screen screen, String translationKey) {

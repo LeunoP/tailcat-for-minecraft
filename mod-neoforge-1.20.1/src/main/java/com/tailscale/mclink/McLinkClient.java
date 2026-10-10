@@ -59,7 +59,7 @@ public final class McLinkClient {
                 SystemToast.add(
                     client.getToasts(),
                     SystemToast.SystemToastIds.PERIODIC_NOTIFICATION,
-                    Component.literal("Remote LAN connection failed"),
+                    Component.translatable("mclink.connection_failed"),
                     Component.literal(error)
                 );
             }
@@ -91,18 +91,27 @@ public final class McLinkClient {
     }
 
     private static void addConnectButton(Minecraft client, Screen screen, int width, int height, ScreenEvent.Init.Post event) {
-        if (findButton(event, "mclink.join") != null) return;
+        Button connect = findButton(event, "mclink.join");
         Button direct = findButton(event, "selectServer.direct");
         if (direct == null) return;
 
-        int row3Y = 0;
+        int row3Y = event.getListenersList().stream()
+                .filter(listener -> listener != connect)
+                .filter(Button.class::isInstance)
+                .map(Button.class::cast)
+                .mapToInt(Button::getY)
+                .max()
+                .orElse(height - 28);
+        int connectWidth = Math.min(204, Math.max(1, width - 32));
+        int connectX = (width - connectWidth) / 2;
         for (GuiEventListener listener : event.getListenersList()) {
-            if (listener instanceof Button b) {
-                if (b.getY() > row3Y) {
-                    row3Y = b.getY();
-                }
+            if (listener instanceof Button b && b != connect) {
                 b.setY(b.getY() - 24);
             }
+        }
+        if (connect != null) {
+            connect.setPosition(connectX, row3Y);
+            connect.setWidth(connectWidth);
         }
 
         for (GuiEventListener child : screen.children()) {
@@ -112,11 +121,13 @@ public final class McLinkClient {
             }
         }
 
-        Button joinBtn = Button.builder(Component.translatable("mclink.join"),
-                b -> client.setScreen(new JoinRemoteScreen(screen)))
-                .bounds(width / 2 - 102, row3Y, 204, 20)
-                .build();
-        event.addListener(joinBtn);
+        if (connect == null) {
+            Button joinBtn = Button.builder(Component.translatable("mclink.join"),
+                    b -> client.setScreen(new JoinRemoteScreen(screen)))
+                    .bounds(connectX, row3Y, connectWidth, 20)
+                    .build();
+            event.addListener(joinBtn);
+        }
     }
 
     private static Button findButton(ScreenEvent.Init.Post event, String translationKey) {

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT="$ROOT/helper/bin"
-RES="$ROOT/mod/src/main/resources/assets/mclink/native"
+RES="$ROOT/mod-common/src/main/resources/assets/mclink/native"
 TSGO_REV=63ae404c8203317fd3c82d972e5dc8f0fcb425cb
 mkdir -p "$OUT" "$RES"
 
@@ -52,3 +52,9 @@ for p in sorted(root.glob("*/mclink-helper*")):
     checksums[p.relative_to(root).as_posix()] = hashlib.sha256(p.read_bytes()).hexdigest()
 (root / "checksums.json").write_text(json.dumps(checksums, indent=2) + "\n")
 PY
+
+for module in mod-fabric-26.2 mod-fabric-26.3 plugin-paper; do
+  destination="$ROOT/$module/src/main/resources/assets/mclink/native"
+  mkdir -p "$destination"
+  cp -R "$RES/." "$destination/"
+done

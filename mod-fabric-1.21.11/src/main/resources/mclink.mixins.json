@@ -3,10 +3,13 @@
   "minVersion": "0.8",
   "package": "com.tailscale.mclink.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [
+  "mixins": [],
+  "client": [
+    "IntegratedServerMaxPlayersMixin",
+    "LanPublicationAccessor",
+    "LanListenersAccessor",
     "IntegratedServerAccessor"
   ],
-  "client": [],
   "injectors": {
     "defaultRequire": 1
   }

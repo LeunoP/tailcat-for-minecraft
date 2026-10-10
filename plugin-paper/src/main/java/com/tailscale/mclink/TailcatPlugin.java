@@ -8,124 +8,98 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
-import java.util.logging.Level;
 
 public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, TabCompleter {
-    private PluginHelperProcess helperProcess;
-    private Path inviteFile;
-    private String currentInvite;
-    private int currentPort;
+    private ServerTunnelController<PluginHelperProcess> tunnel;
+    private volatile boolean enabled;
 
     @Override
     public void onEnable() {
-        currentPort = Bukkit.getPort() > 0 ? Bukkit.getPort() : 25565;
-
-        getLogger().info("Initializing Tailcat tunnel for Paper/Spigot server on port " + currentPort + "...");
-
-        try {
-            Path dataFolder = getDataFolder().toPath();
-            Files.createDirectories(dataFolder);
-
-            List<String> args = List.of("host", "--target", "127.0.0.1:" + currentPort);
-            helperProcess = PluginHelperProcess.start(dataFolder, getDescription().getVersion(), args, event -> {
-                if ("ready".equals(event.type()) && event.invite() != null) {
-                    currentInvite = event.invite();
-                    printBanner(currentInvite, currentPort);
-                    writeInviteFile(currentInvite);
-                } else if ("error".equals(event.type())) {
-                    getLogger().severe("Tailcat error: " + event.message() + " (" + event.code() + ")");
-                }
-            });
-
-            helperProcess.ready(Duration.ofSeconds(20)).whenComplete((readyEvent, err) -> {
-                if (err != null) {
-                    getLogger().log(Level.SEVERE, "Failed to start Tailcat helper: " + err.getMessage(), err);
-                }
-            });
-
-        } catch (Exception e) {
-            getLogger().log(Level.SEVERE, "Could not start Tailcat server tunnel: " + e.getMessage(), e);
-        }
-
+        enabled = true;
+        Path data = getDataFolder().toPath();
+        String version = getDescription().getVersion();
+        tunnel = new ServerTunnelController<>(this::onMainThread,
+                (args, relayOnly, events, logs) -> PluginHelperProcess.start(data, version, args, events, logs, relayOnly),
+                PluginHelperProcess::isAlive, PluginHelperProcess::closed, process -> process.ready(Duration.ofSeconds(120)),
+                data.resolve("tailcat-server.json"), Path.of("tailcat_invite.txt"), data.resolve("diagnostics"),
+                BuildIdentity.metadata("plugin-paper"), getLogger()::info, getLogger()::warning);
+        tunnel.onStop(owns -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (owns.test(player.getAddress())) player.kickPlayer(ServerMessages.text(tunnel.config().language(), "mclink.stopped_message"));
+            }
+        });
         if (getCommand("tailcat") != null) {
             getCommand("tailcat").setExecutor(this);
             getCommand("tailcat").setTabCompleter(this);
         }
+        tunnel.initialize(Bukkit.getPort());
     }
 
     @Override
     public void onDisable() {
-        getLogger().info("Stopping Tailcat server tunnel...");
-        if (helperProcess != null) {
-            try {
-                helperProcess.close();
-            } catch (Exception e) {
-                getLogger().warning("Error closing helper process: " + e.getMessage());
-            }
-            helperProcess = null;
+        enabled = false;
+        if (tunnel != null) tunnel.close();
+    }
+
+    public java.util.concurrent.CompletableFuture<Path> diagnose() {
+        var current = tunnel;
+        if (!enabled || current == null) {
+            return java.util.concurrent.CompletableFuture.failedFuture(
+                    new IllegalStateException("Tailcat is not enabled"));
         }
-
-        deleteInviteFile();
-        currentInvite = null;
-        getLogger().info("Tailcat server tunnel stopped.");
+        return current.diagnose();
     }
 
-    private void printBanner(String invite, int port) {
-        getLogger().info("==================================================================");
-        getLogger().info("  [Tailcat] Paper/Spigot Server successfully shared via Tailcat!");
-        getLogger().info("  [Tailcat] Local Port: " + port);
-        getLogger().info("  [Tailcat] Invitation Code (Share with friends):");
-        getLogger().info("  >>> " + invite + " <<<");
-        getLogger().info("  [Tailcat] Saved to 'tailcat_invite.txt' in server directory");
-        getLogger().info("==================================================================");
-    }
-
-    private void writeInviteFile(String invite) {
+    private void onMainThread(Runnable action) {
+        if (!enabled) return;
+        if (Bukkit.isPrimaryThread()) { action.run(); return; }
         try {
-            inviteFile = Path.of("tailcat_invite.txt").toAbsolutePath();
-            Files.writeString(inviteFile, invite, StandardCharsets.UTF_8);
-            inviteFile.toFile().deleteOnExit();
-        } catch (IOException e) {
-            getLogger().warning("Failed to write tailcat_invite.txt: " + e.getMessage());
-        }
-    }
-
-    private void deleteInviteFile() {
-        if (inviteFile != null) {
-            try {
-                Files.deleteIfExists(inviteFile);
-            } catch (IOException ignored) {}
-            inviteFile = null;
+            Bukkit.getScheduler().runTask(this, () -> { if (enabled) action.run(); });
+        } catch (org.bukkit.plugin.IllegalPluginAccessException error) {
+            if (enabled) getLogger().warning("Could not schedule Tailcat update: " + error.getMessage());
         }
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        String currentInvite = tunnel == null ? null : tunnel.invite();
+        if (args.length > 0 && List.of("start", "stop", "restart").contains(args[0].toLowerCase(java.util.Locale.ROOT))) {
+            if (!sender.hasPermission("tailcat.admin")) {
+                sender.sendMessage(ChatColor.RED + "[Tailcat] " + message("no_permission")); return true;
+            }
+            String action = args[0].toLowerCase(java.util.Locale.ROOT);
+            java.util.concurrent.CompletableFuture<?> operation = switch (action) {
+                case "start" -> tunnel.start(Bukkit.getPort());
+                case "stop" -> tunnel.stop();
+                case "restart" -> tunnel.restart(Bukkit.getPort());
+                default -> throw new IllegalArgumentException("Unknown Tailcat operation: " + action);
+            };
+            operation.whenComplete((result, error) -> onMainThread(() -> sender.sendMessage(
+                    (error == null ? ChatColor.GREEN : ChatColor.RED) +
+                    ServerMessages.response(tunnel.config().language(), action, error == null, result))));
+            return true;
+        }
         if (args.length > 0 && "invite".equalsIgnoreCase(args[0])) {
             if (!sender.hasPermission("tailcat.admin")) {
-                sender.sendMessage(ChatColor.RED + "[Tailcat] 권한이 없습니다.");
+                sender.sendMessage(ChatColor.RED + "[Tailcat] " + message("no_permission"));
                 return true;
             }
             if (currentInvite != null) {
-                sender.sendMessage(ChatColor.GREEN + "[Tailcat] " + ChatColor.WHITE + "초대 코드: " + ChatColor.YELLOW + currentInvite);
-                sender.sendMessage(ChatColor.GRAY + "(채팅창의 코드를 복사하거나 서버 루트의 'tailcat_invite.txt' 파일을 확인하세요)");
+                sender.sendMessage(ChatColor.GREEN + message("invite_label") + ChatColor.YELLOW + currentInvite);
+                sender.sendMessage(ChatColor.GRAY + message("invite_hint"));
             } else {
-                sender.sendMessage(ChatColor.RED + "[Tailcat] 아직 초대 코드가 준비되지 않았거나 터널이 연결되지 않았습니다.");
+                sender.sendMessage(ChatColor.RED + message("inactive"));
             }
             return true;
         }
 
         boolean isAdmin = sender.hasPermission("tailcat.admin");
         if (isAdmin) {
-            sender.sendMessage(ChatColor.GOLD + "=== [Tailcat 연결 상태] ===");
+            sender.sendMessage(ChatColor.GOLD + message("status_title"));
             int count = 0;
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (isTailcatPlayer(player)) {
@@ -134,27 +108,25 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
                 }
             }
             if (count == 0) {
-                sender.sendMessage(ChatColor.GRAY + "Tailcat으로 연결된 플레이어가 없습니다.");
+                sender.sendMessage(ChatColor.GRAY + message("no_players"));
             }
         } else if (sender instanceof Player player) {
             if (isTailcatPlayer(player)) {
                 sender.sendMessage(formatPlayerLine(player));
             } else {
-                sender.sendMessage(ChatColor.GRAY + "Tailcat으로 연결되어 있지 않습니다.");
+                sender.sendMessage(ChatColor.GRAY + message("not_connected"));
             }
         } else {
-            sender.sendMessage(ChatColor.GRAY + "콘솔에서는 모든 유저 정보를 확인하려면 관리자 권한이 필요합니다.");
+            sender.sendMessage(ChatColor.GRAY + message("console_permission"));
         }
         return true;
     }
 
     private boolean isTailcatPlayer(Player player) {
-        if (player.getAddress() != null) {
-            String ip = player.getAddress().getAddress().getHostAddress();
-            return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
-        }
-        return false;
+        return tunnel != null && tunnel.owns(player.getAddress());
     }
+
+    private String message(String key) { return ServerMessages.text(tunnel.config().language(), "mclink.server." + key); }
 
     private String formatPlayerLine(Player player) {
         int ping = player.getPing();
@@ -166,7 +138,9 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return List.of("invite", "status");
+            String prefix = args[0].toLowerCase(java.util.Locale.ROOT);
+            return (sender.hasPermission("tailcat.admin") ? List.of("invite", "status", "start", "stop", "restart") : List.of("status"))
+                    .stream().filter(name -> name.startsWith(prefix)).toList();
         }
         return Collections.emptyList();
     }

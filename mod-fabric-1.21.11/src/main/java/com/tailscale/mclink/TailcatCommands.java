@@ -24,6 +24,15 @@ public final class TailcatCommands {
                 .then(CommandManager.literal("invite")
                     .requires(CommandManager.requirePermissionLevel(CommandManager.ADMINS_CHECK))
                     .executes(ctx -> showInvite(ctx.getSource())))
+                .then(CommandManager.literal("start")
+                    .requires(CommandManager.requirePermissionLevel(CommandManager.ADMINS_CHECK))
+                    .executes(ctx -> operate(ctx.getSource(), "start")))
+                .then(CommandManager.literal("stop")
+                    .requires(CommandManager.requirePermissionLevel(CommandManager.ADMINS_CHECK))
+                    .executes(ctx -> operate(ctx.getSource(), "stop")))
+                .then(CommandManager.literal("restart")
+                    .requires(CommandManager.requirePermissionLevel(CommandManager.ADMINS_CHECK))
+                    .executes(ctx -> operate(ctx.getSource(), "restart")))
                 .then(CommandManager.literal("status")
                     .executes(ctx -> showStatus(ctx.getSource())))
         );
@@ -36,16 +45,16 @@ public final class TailcatCommands {
                 .withColor(Formatting.YELLOW)
                 .withUnderline(true)
                 .withClickEvent(new ClickEvent.CopyToClipboard(invite))
-                .withHoverEvent(new HoverEvent.ShowText(Text.literal("클릭하여 초대 코드 복사"))));
+                .withHoverEvent(new HoverEvent.ShowText(Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.copy_hint")))));
 
-            source.sendFeedback(() -> Text.literal("[Tailcat] 초대 코드: ")
+            source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.invite_label"))
                 .formatted(Formatting.GREEN)
                 .append(inviteComponent), false);
 
-            source.sendFeedback(() -> Text.literal("[Tailcat] (코드를 클릭하여 복사하거나 'tailcat_invite.txt'를 확인하세요)")
+            source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.invite_hint"))
                 .formatted(Formatting.GRAY), false);
         } else {
-            source.sendError(Text.literal("[Tailcat] Tailcat 터널이 비활성화 상태이거나 초대 코드가 준비되지 않았습니다."));
+            source.sendError(Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.inactive")));
         }
         return 1;
     }
@@ -55,7 +64,7 @@ public final class TailcatCommands {
         boolean isAdmin = CommandManager.ADMINS_CHECK.allows(source.getPermissions());
 
         if (isAdmin) {
-            source.sendFeedback(() -> Text.literal("=== [Tailcat 연결 상태] ===").formatted(Formatting.GOLD), false);
+            source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.status_title")).formatted(Formatting.GOLD), false);
             int count = 0;
             for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
                 if (isTailcatPlayer(player)) {
@@ -64,28 +73,31 @@ public final class TailcatCommands {
                 }
             }
             if (count == 0) {
-                source.sendFeedback(() -> Text.literal("Tailcat으로 연결된 플레이어가 없습니다.").formatted(Formatting.GRAY), false);
+                source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.no_players")).formatted(Formatting.GRAY), false);
             }
         } else if (executingPlayer != null) {
             if (isTailcatPlayer(executingPlayer)) {
                 source.sendFeedback(() -> formatPlayerLine(executingPlayer), false);
             } else {
-                source.sendFeedback(() -> Text.literal("Tailcat으로 연결되어 있지 않습니다.").formatted(Formatting.GRAY), false);
+                source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.not_connected")).formatted(Formatting.GRAY), false);
             }
         } else {
-            source.sendFeedback(() -> Text.literal("콘솔에서는 모든 유저 정보를 확인하려면 관리자 권한이 필요합니다.").formatted(Formatting.GRAY), false);
+            source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.console_permission")).formatted(Formatting.GRAY), false);
         }
+        return 1;
+    }
+
+    private static int operate(ServerCommandSource source, String action) {
+        ServerShareHandler.operate(source.getServer(), action).whenComplete((result, error) ->
+                source.getServer().execute(() -> source.sendFeedback(() -> Text.literal(
+                        ServerMessages.response(ServerShareHandler.language(), action, error == null, result)), false)));
         return 1;
     }
 
     private static boolean isTailcatPlayer(ServerPlayerEntity player) {
         if (player.networkHandler == null) return false;
         SocketAddress sa = player.networkHandler.getConnectionAddress();
-        if (sa instanceof InetSocketAddress isa) {
-            String ip = isa.getAddress().getHostAddress();
-            return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
-        }
-        return false;
+        return ServerShareHandler.owns(sa);
     }
 
     private static Text formatPlayerLine(ServerPlayerEntity player) {

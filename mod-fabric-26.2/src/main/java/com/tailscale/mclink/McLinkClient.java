@@ -40,7 +40,7 @@ public final class McLinkClient implements ClientModInitializer {
             String error = state.takeError();
             if (error != null) {
                 SystemToast.add(client.gui.toastManager(), SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
-                        Component.literal("Remote LAN connection failed"), Component.literal(error));
+                        Component.translatable("mclink.connection_failed"), Component.literal(error));
             }
         });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> state.close());
@@ -95,7 +95,7 @@ public final class McLinkClient implements ClientModInitializer {
     }
 
     private static void addConnectButton(Minecraft client, Screen screen, int width, int height) {
-        if (findButton(screen, "mclink.join") != null) return;
+        Button tailcatButton = findButton(screen, "mclink.join");
         if (!(screen instanceof JoinMultiplayerScreen multiplayerScreen)) return;
 
         HeaderAndFooterLayout layout = ((JoinMultiplayerScreenAccessor) multiplayerScreen).mclink$getLayout();
@@ -109,11 +109,16 @@ public final class McLinkClient implements ClientModInitializer {
         });
 
         if (footerHolder[0] != null) {
-            Button tailcatButton = Button.builder(Component.translatable("mclink.join"),
-                            button -> client.gui.setScreen(new JoinRemoteScreen(screen)))
-                    .width(308).build();
-            footerHolder[0].addChild(tailcatButton);
-            Screens.getWidgets(screen).add(tailcatButton);
+            int connectWidth = Math.min(308, Math.max(1, width - 32));
+            if (tailcatButton == null) {
+                tailcatButton = Button.builder(Component.translatable("mclink.join"),
+                                button -> client.gui.setScreen(new JoinRemoteScreen(screen)))
+                        .width(connectWidth).build();
+                footerHolder[0].addChild(tailcatButton);
+                Screens.getWidgets(screen).add(tailcatButton);
+            } else {
+                tailcatButton.setWidth(connectWidth);
+            }
             layout.setFooterHeight(88);
             layout.arrangeElements();
             for (var child : screen.children()) {

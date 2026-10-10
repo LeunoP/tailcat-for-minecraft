@@ -3,120 +3,62 @@ package com.tailscale.mclink;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public final class HelperProcess implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger("mclink/helper");
-    private final Process process;
-    private final AtomicBoolean closing = new AtomicBoolean();
-    private final CompletableFuture<HelperEvent> ready = new CompletableFuture<>();
-    private final Consumer<String> logConsumer;
+    private final ManagedHelperProcess process;
 
-    private HelperProcess(Process process, Consumer<HelperEvent> events, Consumer<String> logConsumer) {
-        this.process = process;
-        this.logConsumer = logConsumer;
-        Thread tOut = new Thread(() -> readStdout(events), "mclink-helper-stdout"); tOut.setDaemon(true); tOut.start();
-        Thread tErr = new Thread(this::drainStderr, "mclink-helper-stderr"); tErr.setDaemon(true); tErr.start();
-        process.onExit().thenAccept(p -> {
-            if (!closing.get()) {
-                IOException failure = new IOException("helper exited unexpectedly (status " + p.exitValue() + ")");
-                ready.completeExceptionally(failure);
-                events.accept(new HelperEvent("error", null, null, null, "unexpected_exit", failure.getMessage()));
+    private HelperProcess(ProcessBuilder builder, Consumer<HelperEvent> events, Consumer<String> logs) throws IOException {
+        this.process = ManagedHelperProcess.start(builder, events, line -> {
+            if (!line.contains("Receiving keepalive") && !line.contains("wg: [v2] peer")) {
+                LOG.debug("{}", line);
             }
+            if (logs != null) logs.accept(line);
         });
     }
 
     public static HelperProcess start(List<String> arguments, Consumer<HelperEvent> events) throws IOException {
-        return start(arguments, events, null);
+        return start(arguments, events, null, false);
     }
 
-    public static HelperProcess start(List<String> arguments, Consumer<HelperEvent> events, Consumer<String> logConsumer) throws IOException {
+    public static HelperProcess start(List<String> arguments, Consumer<HelperEvent> events,
+                                      Consumer<String> logs) throws IOException {
+        return start(arguments, events, logs, false);
+    }
+
+    public static HelperProcess start(List<String> arguments, Consumer<HelperEvent> events,
+                                      Consumer<String> logs, boolean relayOnly) throws IOException {
         Path executable = NativeHelper.extract();
+        if (logs != null) logs.accept(HelperIdentity.describe(executable));
         List<String> command = new ArrayList<>();
         command.add(executable.toString());
         command.addAll(arguments);
-        return new HelperProcess(new ProcessBuilder(command).start(), events, logConsumer);
+        command.addAll(List.of("--protocol", "2"));
+        command.add("--relay-only=" + relayOnly);
+        ProcessBuilder builder = new ProcessBuilder(command);
+        builder.environment().remove("TS_DEBUG_ALWAYS_USE_DERP");
+        return new HelperProcess(builder, events, logs);
     }
 
     public CompletableFuture<HelperEvent> ready(Duration timeout) {
-        return ready.orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS);
-    }
-
-    private void readStdout(Consumer<HelperEvent> events) {
-        try (BufferedReader reader = process.inputReader(StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                HelperEvent event = HelperEvent.parse(line);
-                if (event.type().equals("ready")) {
-                    ready.complete(event);
-                } else if (event.type().equals("error")) {
-                    ready.completeExceptionally(new IOException(event.code() + ": " + event.message()));
-                }
-                events.accept(event);
-            }
-        } catch (Exception e) {
-            if (!closing.get()) {
-                ready.completeExceptionally(e);
-            }
-        }
-    }
-
-    private void drainStderr() {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                // Ignore routine Wireguard handshake/keepalive logs that spam the console
-                if (line.contains("wg: [v2] peer") || line.contains("Receiving keepalive") || line.contains("handshake")) {
-                    continue;
-                }
-                LOG.debug("{}", line);
-                if (logConsumer != null) {
-                    try {
-                        logConsumer.accept(line);
-                    } catch (Throwable ignored) {}
-                }
-            }
-        } catch (IOException e) {
-            if (!closing.get()) {
-                LOG.warn("Could not drain helper stderr", e);
-            }
-        }
+        return process.ready(timeout);
     }
 
     public boolean isAlive() {
         return process.isAlive();
     }
 
+    public CompletableFuture<Void> closed() { return process.closed(); }
+
     @Override
     public void close() {
-        if (!closing.compareAndSet(false, true)) {
-            return;
-        }
-        try {
-            process.getOutputStream().close();
-            if (!process.waitFor(3, TimeUnit.SECONDS)) {
-                process.destroy();
-                if (!process.waitFor(2, TimeUnit.SECONDS)) {
-                    process.destroyForcibly();
-                }
-            }
-        } catch (InterruptedException e) {
-            process.destroyForcibly();
-            Thread.currentThread().interrupt();
-        } catch (IOException e) {
-            process.destroyForcibly();
-            LOG.warn("Could not close helper stdin", e);
-        }
+        process.close();
     }
 }

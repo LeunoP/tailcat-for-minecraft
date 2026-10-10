@@ -1,20 +1,9 @@
-buildscript {
-    repositories {
-        maven { url = 'https://maven.minecraftforge.net' }
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.+'
-    }
-}
-
 plugins {
     id 'java'
+    id 'net.minecraftforge.gradle' version '[7.0.17,8)'
 }
 
-apply plugin: 'net.minecraftforge.gradle'
-
-version = '0.2.1'
+version = '0.3.0'
 group = 'com.tailscale.tailcat.minecraft'
 
 base {
@@ -28,13 +17,12 @@ java {
 }
 
 minecraft {
-    mappings channel: 'official', version: '26.2'
-
     runs {
         client {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
+            workingDir = layout.projectDirectory.dir('run')
+            args '--mixin.config=mclink.mixins.json'
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            systemProperty 'forge.logging.console.level', 'debug'
             mods {
                 mclink {
                     source sourceSets.main
@@ -44,21 +32,43 @@ minecraft {
     }
 }
 
+repositories {
+    maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
 dependencies {
-    minecraft 'net.minecraftforge:forge:26.2-65.1.0'
-    compileOnly 'net.minecraftforge:eventbus:7.0.5'
-    compileOnly 'net.minecraftforge:javafmllanguage:26.2-65.1.0'
+    implementation minecraft.dependency('net.minecraftforge:forge:26.2-65.1.0')
+    compileOnly 'org.spongepowered:mixin:0.8.7'
+    annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
 }
 
 sourceSets {
     main {
+        java {
+            srcDir file('../mod-common/src/main/java')
+            exclude 'com/tailscale/mclink/mixin/IntegratedServerMaxPlayersMixin.java'
+        }
         resources {
             srcDir file('../mod-common/src/main/resources')
         }
     }
+    mixinCompat {
+        java {
+            srcDir file('src/main/java')
+            include 'com/tailscale/mclink/mixin/IntegratedServerMaxPlayersMixin.java'
+        }
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        annotationProcessorPath = sourceSets.main.annotationProcessorPath
+    }
 }
 
 processResources {
+    filesMatching('tailcat-build.properties') { expand version: project.version }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     inputs.property 'version', project.version
     filesMatching('META-INF/mods.toml') {
         expand 'version': project.version
@@ -67,11 +77,20 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+tasks.named('compileMixinCompatJava', JavaCompile) {
+    dependsOn tasks.named('compileJava')
+    options.release = 21
 }
 
 jar {
+    from sourceSets.mixinCompat.output
+    dependsOn tasks.named('compileMixinCompatJava')
     manifest {
         attributes([
+            'MixinConfigs'            : 'mclink.mixins.json',
             'Specification-Title'     : 'mclink',
             'Specification-Vendor'    : 'Tailscale',
             'Specification-Version'   : '1',
