@@ -11,9 +11,6 @@ import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.util.List;
-import java.util.UUID;
-import com.mojang.blaze3d.platform.InputConstants;
 
 public final class ShareScreen extends Screen {
     private final Screen parent;
@@ -28,8 +25,6 @@ public final class ShareScreen extends Screen {
     private boolean showInvite = false;
     private Button copyButton;
     private int copyFeedbackTicks = 0;
-    private int playerScrollOffset = 0;
-    private static final int VISIBLE_PLAYER_ROWS = 2;
 
     public ShareScreen(Screen parent) {
         super(Component.translatable("mclink.share"));
@@ -71,6 +66,9 @@ public final class ShareScreen extends Screen {
 
         if (hosting) {
             int buttonY = height / 2 + 48;
+            addRenderableWidget(Button.builder(Component.translatable("mclink.connection_info"), b -> {
+                minecraft.gui.setScreen(new ConnectionStatusScreen(this));
+            }).bounds(width / 2 - 102, height / 2 + 16, 204, 20).build());
             copyButton = addRenderableWidget(Button.builder(Component.translatable("mclink.copy"), b -> {
                 if (invite != null && minecraft != null) {
                     minecraft.keyboardHandler.setClipboard(invite);
@@ -204,7 +202,6 @@ public final class ShareScreen extends Screen {
         if (minecraft != null) {
             IntegratedServer server = minecraft.getSingleplayerServer();
             if (server != null) {
-                UUID hostId = minecraft.player != null ? minecraft.player.getUUID() : null;
                 Component disconnectReason = Component.translatable("mclink.stopped_message");
                 server.execute(() -> {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -270,36 +267,6 @@ public final class ShareScreen extends Screen {
                         startX, inviteY, 0xFFAAAAAA);
             }
 
-            // Connected Players with Ping & Connection Mode
-            ScreenState state = McLinkClient.state();
-            ScreenState.TransportMode mode = state.getTransportMode();
-
-            List<ServerPlayer> guests = getGuestPlayers();
-            if (guests.isEmpty()) {
-                extractor.centeredText(this.font, Component.translatable("mclink.no_players"), centerX, currentY + 70, 0xFF888888);
-            } else {
-                Component countText = Component.translatable("mclink.connected_players", guests.size());
-                extractor.centeredText(this.font, countText, centerX, currentY + 68, 0xFFFFFFFF);
-                playerScrollOffset = Math.min(playerScrollOffset, Math.max(0, guests.size() - VISIBLE_PLAYER_ROWS));
-                int playerY = currentY + 84;
-                for (int i = playerScrollOffset; i < Math.min(guests.size(), playerScrollOffset + VISIBLE_PLAYER_ROWS); i++) {
-                    ServerPlayer player = guests.get(i);
-                    int latency = player.connection.latency();
-                    net.minecraft.ChatFormatting pingFormat = latency < 80 ? net.minecraft.ChatFormatting.GREEN : (latency < 160 ? net.minecraft.ChatFormatting.YELLOW : net.minecraft.ChatFormatting.RED);
-
-                    net.minecraft.network.chat.MutableComponent line = Component.literal("• " + player.getScoreboardName() + "   ")
-                            .withStyle(net.minecraft.ChatFormatting.WHITE)
-                            .append(Component.literal(latency + "ms").withStyle(pingFormat))
-                            .append(Component.literal(" / " + state.routeLabel(player.connection.getRemoteAddress())));
-
-                    extractor.centeredText(this.font, line, centerX, playerY, 0xFFFFFFFF);
-                    playerY += 14;
-                }
-                if (guests.size() > VISIBLE_PLAYER_ROWS) {
-                    extractor.centeredText(this.font, Component.translatable("mclink.scroll_players"), centerX,
-                            currentY + 84 + VISIBLE_PLAYER_ROWS * 14 + 2, 0xFFAAAAAA);
-                }
-            }
         } else {
             int currentY = height / 2 - 84;
             extractor.centeredText(this.font, title, centerX, currentY, 0xFFFFFFFF);
@@ -314,13 +281,7 @@ public final class ShareScreen extends Screen {
 
 
     private void renderStatus(GuiGraphicsExtractor extractor, int y, int rows) {
-        var state = McLinkClient.state();
-        var display = hostingLayout && state.isHosting()
-                ? (getGuestPlayers().isEmpty()
-                    ? Component.translatable("mclink.waiting_players")
-                    : Component.translatable("mclink.connection_path", state.getTransportMode().label()))
-                : status;
-        renderNote(extractor, display, y, rows);
+        renderNote(extractor, status, y, rows);
     }
 
     private void renderNote(GuiGraphicsExtractor extractor, Component message, int y, int rows) {
@@ -356,43 +317,6 @@ public final class ShareScreen extends Screen {
 
     private Component relayOnlyLabel() {
         return Component.translatable(relayOnly ? "mclink.relay_only_enabled" : "mclink.relay_only_disabled");
-    }
-
-    private boolean scrollPlayers(int amount) {
-        int maxOffset = Math.max(0, getGuestPlayers().size() - VISIBLE_PLAYER_ROWS);
-        if (maxOffset == 0) return false;
-        playerScrollOffset = Math.max(0, Math.min(maxOffset, playerScrollOffset + amount));
-        return true;
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (McLinkClient.state().isHosting() && mouseX >= 0 && mouseX < width
-                && mouseY >= height / 2.0 - 6 && mouseY < height / 2.0 + 42
-                && horizontalAmount == 0 && verticalAmount != 0 && scrollPlayers(verticalAmount > 0 ? -1 : 1)) {
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
-    }
-
-    @Override
-    public boolean keyPressed(KeyEvent event) {
-        int keyCode = event.key();
-        if (McLinkClient.state().isHosting() && getGuestPlayers().size() > VISIBLE_PLAYER_ROWS) {
-            if (keyCode == InputConstants.KEY_UP || keyCode == InputConstants.KEY_PAGEUP) return scrollPlayers(-1);
-            if (keyCode == InputConstants.KEY_DOWN || keyCode == InputConstants.KEY_PAGEDOWN) return scrollPlayers(1);
-        }
-        return super.keyPressed(event);
-    }
-
-    private List<ServerPlayer> getGuestPlayers() {
-        if (minecraft == null) return List.of();
-        IntegratedServer server = minecraft.getSingleplayerServer();
-        if (server == null) return List.of();
-        UUID hostId = minecraft.player != null ? minecraft.player.getUUID() : null;
-        return server.getPlayerList().getPlayers().stream()
-                .filter(p -> McLinkClient.state().owns(p.connection.getRemoteAddress()))
-                .toList();
     }
 
     private static String shorten(String value) {

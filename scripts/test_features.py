@@ -70,17 +70,118 @@ class FeatureSourceContracts(unittest.TestCase):
                 continue
             java = ROOT / target["module"] / "src/main/java/com/tailscale/mclink"
             screen = (java / "ShareScreen.java").read_text(encoding="utf-8")
-            for key in ("waiting_players", "current_capacity", "next_share_capacity", "existing_lan_kept"):
+            for key in ("current_capacity", "next_share_capacity", "existing_lan_kept"):
                 self.assertIn(f'"mclink.{key}"', screen, target["module"])
             self.assertIn("HostPreferences.SESSION.get()", screen)
             self.assertIn("HostPreferences.SESSION.remember(relayOnly, count)", screen)
             changed = re.search(r"(?:setChangedListener|setResponder)\(value -> \{([\s\S]*?)\n            \}\);", screen)
             self.assertIsNotNone(changed, target["module"])
             self.assertNotIn("rememberHostSettings", changed.group(1), target["module"])
-            self.assertRegex(screen, r"getGuestPlayers\(\).isEmpty\(\)[\s\S]*?mclink.waiting_players")
+            self.assertIn('"mclink.connection_info"', screen, target["module"])
+            self.assertIn("new ConnectionStatusScreen(this)", screen, target["module"])
+            self.assertNotIn("VISIBLE_PLAYER_ROWS", screen, target["module"])
             self.assertRegex(screen, r"server.getPlayer(?:List|Manager)\(\).getMaxPlayer(?:s|Count)\(\)")
             state = (java / "ScreenState.java").read_text(encoding="utf-8")
             self.assertIn("return isHosting() && publicationLease == null;", state)
+
+    def test_pause_menu_connection_status_is_shared_by_all_mod_loaders(self):
+        matrix = json.loads((ROOT / "scripts/support_matrix.json").read_text(encoding="utf-8"))["targets"]
+        for target in matrix:
+            if target["loader"] == "paper":
+                java = ROOT / target["module"] / "src/main/java/com/tailscale/mclink"
+                publisher = (java / "RouteStatusPublisher.java").read_text(encoding="utf-8")
+                plugin = (java / "TailcatPlugin.java").read_text(encoding="utf-8")
+                self.assertIn('"mclink:connection_status"', publisher, target["module"])
+                self.assertIn("sendPluginMessage", publisher, target["module"])
+                self.assertIn("registerOutgoingPluginChannel", plugin, target["module"])
+                self.assertIn("payload[0] = 0", publisher, target["module"])
+                self.assertNotIn("Scoreboard", publisher, target["module"])
+                self.assertIn("RouteStatus.encode", plugin, target["module"])
+                self.assertIn("current.route(address)", plugin, target["module"])
+                self.assertIn("refreshRouteStatuses", plugin, target["module"])
+                self.assertIn("routeStatusPublisher.clear()", plugin, target["module"])
+                continue
+            java = ROOT / target["module"] / "src/main/java/com/tailscale/mclink"
+            publisher = (java / "RouteStatusPublisher.java").read_text(encoding="utf-8")
+            screen = (java / "ConnectionStatusScreen.java").read_text(encoding="utf-8")
+            client = (java / "McLinkClient.java").read_text(encoding="utf-8")
+            state = (java / "ScreenState.java").read_text(encoding="utf-8")
+            server = (java / "ServerShareHandler.java").read_text(encoding="utf-8")
+            statuses = (ROOT / "mod-common/src/main/java/com/tailscale/mclink/RouteStatus.java").read_text(encoding="utf-8")
+            self.assertIn("connection_status", publisher, target["module"])
+            self.assertNotIn("Scoreboard", publisher, target["module"])
+            self.assertNotIn("tailcat_route", publisher, target["module"])
+            self.assertIn("RouteStatus.encode", server, target["module"])
+            self.assertIn("RouteStatusPublisher.publish", state, target["module"])
+            self.assertIn("RouteStatusPublisher.clear", state, target["module"])
+            self.assertIn("ConnectionStatusScreen", client, target["module"])
+            self.assertIn('"mclink.status"', client, target["module"])
+            self.assertIn("RouteStatusCache.players()", screen, target["module"])
+            self.assertIn("RouteStatusCache.hasSnapshot()", screen, target["module"])
+            self.assertNotIn("scoreboard", screen.lower(), target["module"])
+            for route in ("DIRECT", "RELAY", "UNKNOWN", "NOT_TAILCAT"):
+                self.assertIn(route, statuses, target["module"])
+            if target["minecraft"] == "1.21.11":
+                self.assertRegex(
+                    screen,
+                    r"@Override public void render\([^\n]+\) \{\s*"
+                    r"(?:context|graphics)\.fill\(0, 0, width, height, 0x80000000\);",
+                    target["module"],
+                )
+                self.assertNotIn("renderBackground(", screen, target["module"])
+            for secret in ("invite", "getRemoteAddress", "getConnectionAddress", "getRelayRegion"):
+                self.assertNotIn(secret, screen, target["module"])
+
+    def test_connection_status_cache_is_scoped_to_the_originating_client_connection(self):
+        matrix = json.loads((ROOT / "scripts/support_matrix.json").read_text(encoding="utf-8"))["targets"]
+        common = (ROOT / "mod-common/src/main/java/com/tailscale/mclink/RouteStatusCache.java").read_text(encoding="utf-8")
+        self.assertIn("beginSession(Object connection)", common)
+        self.assertIn("accept(Object connection, byte[] payload)", common)
+        self.assertIn("endSession(Object connection)", common)
+        self.assertIn("connection != activeConnection", common)
+
+        for target in matrix:
+            if target["loader"] == "paper":
+                continue
+            module = ROOT / target["module"]
+            java = module / "src/main/java/com/tailscale/mclink"
+            client = (java / "McLinkClient.java").read_text(encoding="utf-8")
+            publisher = (java / "RouteStatusPublisher.java").read_text(encoding="utf-8")
+            self.assertNotRegex(publisher, r"RouteStatusCache\.accept\(\s*(?:bytes|payload\.bytes)\s*\)", target["module"])
+            if target["loader"] == "fabric":
+                self.assertIn("ClientPlayConnectionEvents.INIT.register", client, target["module"])
+                if target["minecraft"] == "1.20.1":
+                    self.assertIn("RouteStatusCache.beginSession(handler.getConnection())", client, target["module"])
+                    self.assertIn("RouteStatusCache.endSession(handler.getConnection())", client, target["module"])
+                    self.assertRegex(client, r"var connection = handler\.getConnection\(\);\s*client\.execute\(\(\) -> RouteStatusPublisher\.receive\(connection,")
+                else:
+                    self.assertRegex(client, r"ClientPlayConnectionEvents\.INIT\.register\(\(handler, client\) -> \{\s*var connection = handler\.getConnection\(\);\s*RouteStatusCache\.beginSession\(connection\);\s*ClientPlayNetworking\.registerReceiver\(RouteStatusPublisher\.(?:ID|TYPE),")
+                    self.assertIn("RouteStatusCache.endSession(handler.getConnection())", client, target["module"])
+                    self.assertNotIn("ClientPlayNetworking.registerGlobalReceiver(RouteStatusPublisher.", client, target["module"])
+                    self.assertNotIn("context.player()", client, target["module"])
+                    self.assertRegex(client, r"ClientPlayNetworking\.registerReceiver\(RouteStatusPublisher\.(?:ID|TYPE),\s*\(payload, context\) -> client\.execute\(\(\) -> RouteStatusPublisher\.receive\(connection, payload\)\)")
+                self.assertIn("RouteStatusCache.accept(connection,", publisher, target["module"])
+            elif target["loader"] == "forge":
+                self.assertIn("ClientPlayerNetworkEvent.LoggingIn", client, target["module"])
+                self.assertIn("ClientPlayerNetworkEvent.LoggingOut", client, target["module"])
+                self.assertIn("RouteStatusCache.beginSession(event.getConnection())", client, target["module"])
+                self.assertIn("RouteStatusCache.endSession(event.getConnection())", client, target["module"])
+                if target["minecraft"] == "1.20.1":
+                    self.assertIn("receive(context.get().getNetworkManager(), bytes)", publisher, target["module"])
+                else:
+                    self.assertIn("receive(context.getConnection(), bytes)", publisher, target["module"])
+                self.assertIn("RouteStatusCache.accept(connection, bytes)", publisher, target["module"])
+            else:
+                self.assertIn("ClientPlayerNetworkEvent.LoggingIn", client, target["module"])
+                self.assertIn("ClientPlayerNetworkEvent.LoggingOut", client, target["module"])
+                self.assertIn("RouteStatusCache.beginSession(event.getConnection())", client, target["module"])
+                self.assertIn("RouteStatusCache.endSession(event.getConnection())", client, target["module"])
+                if target["minecraft"] == "1.20.1":
+                    self.assertIn("receive(context.get().getNetworkManager(), bytes)", publisher, target["module"])
+                    self.assertIn("RouteStatusCache.accept(connection, bytes)", publisher, target["module"])
+                else:
+                    self.assertIn("receive(context.connection(), payload)", publisher, target["module"])
+                    self.assertIn("RouteStatusCache.accept(connection, payload.bytes)", publisher, target["module"])
 
     def test_last_invite_uses_visible_relay_option(self):
         matrix = json.loads((ROOT / "scripts/support_matrix.json").read_text(encoding="utf-8"))["targets"]
@@ -118,7 +219,7 @@ class FeatureSourceContracts(unittest.TestCase):
             screen = (ROOT / target["module"] / "src/main/java/com/tailscale/mclink/ShareScreen.java").read_text(encoding="utf-8")
             self.assertNotIn("getRelayRegion()", screen, target["module"])
             self.assertNotIn('"MC " + latency', screen, target["module"])
-            self.assertIn('latency + "ms"', screen, target["module"])
+            self.assertNotIn("getGuestPlayers", screen, target["module"])
 
 
 if __name__ == "__main__":

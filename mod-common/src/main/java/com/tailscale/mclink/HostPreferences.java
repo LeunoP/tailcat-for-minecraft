@@ -5,8 +5,8 @@ public final class HostPreferences {
 
     public record Settings(boolean relayOnly, int maxPlayers) {
         public Settings {
-            if (maxPlayers < 2 || maxPlayers > 64) {
-                throw new IllegalArgumentException("Host player limit must be between 2 and 64");
+            if (maxPlayers < 2) {
+                throw new IllegalArgumentException("Host player limit must be at least 2");
             }
         }
     }

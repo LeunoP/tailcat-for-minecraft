@@ -7,7 +7,7 @@ import java.util.function.ObjIntConsumer;
 import java.util.function.ToIntFunction;
 
 public final class HostPlayerLimit {
-    public static final BigInteger MAX_PLAYERS = BigInteger.valueOf(64);
+    public static final BigInteger MAX_PLAYERS = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final Map<Object, Integer> ACTIVE_LIMITS = new WeakHashMap<>();
 
     private HostPlayerLimit() {

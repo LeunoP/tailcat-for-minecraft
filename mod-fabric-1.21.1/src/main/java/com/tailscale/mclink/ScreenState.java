@@ -27,6 +27,7 @@ public final class ScreenState implements AutoCloseable {
     private PublicationLease<?> publicationLease;
     private CompletableFuture<Void> restoring = CompletableFuture.completedFuture(null);
     private long operationId;
+    private int routeStatusTicks;
     private volatile String lastError;
     private final TunnelDiagnostics diagnostics = new TunnelDiagnostics();
 
@@ -104,6 +105,10 @@ public final class ScreenState implements AutoCloseable {
         return session != null && session.mode == SessionMode.HOST && session.process.isAlive();
     }
 
+    public synchronized boolean hasActiveSession() {
+        return session != null && session.process.isAlive();
+    }
+
     public synchronized boolean keepsExistingLan() {
         return isHosting() && publicationLease == null;
     }
@@ -132,6 +137,20 @@ public final class ScreenState implements AutoCloseable {
     }
 
     public synchronized void tick(MinecraftClient client) {
+        if (session != null && session.mode == SessionMode.HOST && ++routeStatusTicks >= 20) {
+            routeStatusTicks = 0;
+            IntegratedServer hostServer = client.getServer();
+            if (hostServer != null) hostServer.execute(() -> {
+                synchronized (ScreenState.this) {
+                    if (session == null || session.mode != SessionMode.HOST || session.invite == null) {
+                        RouteStatusPublisher.clear(hostServer);
+                        return;
+                    }
+                    RouteStatusPublisher.publish(hostServer, address -> RouteStatus.encode(
+                            diagnostics.owns(address), diagnostics.route(address)));
+                }
+            });
+        }
         if (session == null) {
             return;
         }
@@ -209,10 +228,12 @@ public final class ScreenState implements AutoCloseable {
         playerLimitLease = null; publicationLease = null;
         Session stopped = session;
         session = null;
+        routeStatusTicks = 0;
         diagnostics.stopped();
         if (stopped != null) stopped.process.close();
         IntegratedServer server = stopped == null ? null : stopped.offlineAuthServer;
         Runnable restore = () -> {
+            if (stopped != null && stopped.mode == SessionMode.HOST && server != null) RouteStatusPublisher.clear(server);
             if (stoppedPublication != null) stoppedPublication.restore();
             if (stoppedLimit != null) stoppedLimit.restore();
             if (server != null) server.setOnlineMode(stopped.previousOnlineMode);

@@ -15,6 +15,7 @@ import java.util.List;
 
 public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, TabCompleter {
     private ServerTunnelController<PluginHelperProcess> tunnel;
+    private RouteStatusPublisher routeStatusPublisher;
     private volatile boolean enabled;
 
     @Override
@@ -22,12 +23,15 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
         enabled = true;
         Path data = getDataFolder().toPath();
         String version = getDescription().getVersion();
+        routeStatusPublisher = new RouteStatusPublisher(this);
+        getServer().getMessenger().registerOutgoingPluginChannel(this, RouteStatusPublisher.CHANNEL);
         tunnel = new ServerTunnelController<>(this::onMainThread,
                 (args, relayOnly, events, logs) -> PluginHelperProcess.start(data, version, args, events, logs, relayOnly),
                 PluginHelperProcess::isAlive, PluginHelperProcess::closed, process -> process.ready(Duration.ofSeconds(120)),
                 data.resolve("tailcat-server.json"), Path.of("tailcat_invite.txt"), data.resolve("diagnostics"),
                 BuildIdentity.metadata("plugin-paper"), getLogger()::info, getLogger()::warning);
         tunnel.onStop(owns -> {
+            onMainThread(routeStatusPublisher::clear);
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (owns.test(player.getAddress())) player.kickPlayer(ServerMessages.text(tunnel.config().language(), "mclink.stopped_message"));
             }
@@ -37,12 +41,26 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
             getCommand("tailcat").setTabCompleter(this);
         }
         tunnel.initialize(Bukkit.getPort());
+        Bukkit.getScheduler().runTaskTimer(this, this::refreshRouteStatuses, 20L, 20L);
     }
 
     @Override
     public void onDisable() {
         enabled = false;
+        if (routeStatusPublisher != null) routeStatusPublisher.clear();
+        getServer().getMessenger().unregisterOutgoingPluginChannel(this, RouteStatusPublisher.CHANNEL);
         if (tunnel != null) tunnel.close();
+    }
+
+    private void refreshRouteStatuses() {
+        ServerTunnelController<PluginHelperProcess> current = tunnel;
+        if (!enabled || routeStatusPublisher == null) return;
+        if (current == null || current.invite() == null) {
+            routeStatusPublisher.clear();
+            return;
+        }
+        routeStatusPublisher.publish(List.copyOf(Bukkit.getOnlinePlayers()), address ->
+                RouteStatus.encode(current.owns(address), current.route(address)));
     }
 
     public java.util.concurrent.CompletableFuture<Path> diagnose() {
@@ -130,9 +148,11 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
 
     private String formatPlayerLine(Player player) {
         int ping = player.getPing();
+        int status = tunnel == null ? RouteStatus.NOT_TAILCAT : tunnel.connectionStatus(player.getAddress());
+        String route = RouteStatus.commandLabel(status, tunnel == null ? "en_us" : tunnel.config().language());
 
         return ChatColor.GRAY + "[ " + ChatColor.GREEN + player.getName() + ChatColor.GRAY + " ] " +
-               ChatColor.WHITE + ping + "ms";
+               ChatColor.AQUA + route + " " + ChatColor.WHITE + ping + "ms";
     }
 
     @Override

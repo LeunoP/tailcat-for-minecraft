@@ -3,6 +3,8 @@ package com.tailscale.mclink;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.client.MinecraftClient;
@@ -17,10 +19,19 @@ public final class McLinkClient implements ClientModInitializer {
     private static ScreenState state;
 
     @Override public void onInitializeClient() {
+        RouteStatusPublisher.registerPayload();
+        ClientPlayConnectionEvents.INIT.register((handler, client) -> {
+            var connection = handler.getConnection();
+            RouteStatusCache.beginSession(connection);
+            ClientPlayNetworking.registerReceiver(RouteStatusPublisher.ID,
+                    (payload, context) -> client.execute(() -> RouteStatusPublisher.receive(connection, payload)));
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> RouteStatusCache.endSession(handler.getConnection()));
         state = new ScreenState();
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
-            if (screen instanceof GameMenuScreen && client.isIntegratedServerRunning()) {
-                addShareButton(client, screen);
+            if (screen instanceof GameMenuScreen) {
+                if (client.isIntegratedServerRunning()) addShareButton(client, screen);
+                if (state.hasActiveSession() || ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen);
             } else if (screen instanceof MultiplayerScreen) {
                 addConnectButton(client, screen, width, height);
             }
@@ -46,6 +57,28 @@ public final class McLinkClient implements ClientModInitializer {
         Screens.getButtons(screen).add(ButtonWidget.builder(Text.translatable("mclink.share"),
                         button -> client.setScreen(new ShareScreen(screen)))
                 .dimensions(screen.width / 2 - 102, newY, 204, 20).build());
+    }
+
+    private static void addStatusButton(MinecraftClient client, net.minecraft.client.gui.screen.Screen screen) {
+        if (findButton(screen, "mclink.status") != null) return;
+        ButtonWidget share = findButton(screen, "mclink.share");
+        int x, y, buttonWidth;
+        if (share != null) {
+            y = share.getY(); buttonWidth = 100;
+            share.setPosition(screen.width / 2 - 102, y); share.setWidth(buttonWidth);
+            x = screen.width / 2 + 2;
+        } else {
+            ButtonWidget anchor = findButton(screen, "menu.options");
+            y = anchor == null ? screen.height - 48 : anchor.getY() + anchor.getHeight() + 4;
+            if (anchor != null) Screens.getButtons(screen).stream()
+                    .filter(button -> button != anchor && button.getY() > anchor.getY())
+                    .forEach(button -> button.setY(button.getY() + 24));
+            buttonWidth = Math.min(204, Math.max(1, screen.width - 32));
+            x = (screen.width - buttonWidth) / 2;
+        }
+        Screens.getButtons(screen).add(ButtonWidget.builder(Text.translatable("mclink.status"),
+                        button -> client.setScreen(new ConnectionStatusScreen(screen)))
+                .dimensions(x, y, buttonWidth, 20).build());
     }
 
     private static void addConnectButton(MinecraftClient client, net.minecraft.client.gui.screen.Screen screen, int width, int height) {

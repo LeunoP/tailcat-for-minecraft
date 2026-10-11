@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build_id": "20261010T173906Z",
+  "build_id": "20261011T142507Z",
   "source": {
-    "commit": "e08c4fb974c4ce2361425dc59f3050b61603e13f",
+    "commit": "2bb0157c70725190a1a04aef82350ffe3a12beda",
     "dirty": true,
-    "sha256": "fe6ee51e6f0c841df882cc4d246615e59a8c04923a1b22eef08c08dce68cc96c"
+    "sha256": "1c146c635fdb5d89caad316475c9212718ab427d05c00d13d899f2396a64390f"
   },
   "full_matrix": true,
   "common_contract_tests": "passed",
   "preparation_script_tests": "passed",
-  "elapsed_seconds": 379.36,
+  "elapsed_seconds": 374.45,
   "artifacts": [
     {
       "module": "mod-fabric-1.20.1",
@@ -32,11 +32,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-fabric-1.20.1-0.3.0.jar",
-      "jar_sha256": "f756e48bc16379e1cae0dddfc1d66adac20cf108062cd6dfc56eb589000e926a",
-      "bytes": 45428869,
+      "jar_sha256": "94f6403df46fb6b053de577cab1955b70a329205f28c3730db7b58d8fdf923bd",
+      "bytes": 45450897,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-forge-1.20.1",
@@ -62,11 +62,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-forge-1.20.1-0.3.0.jar",
-      "jar_sha256": "7fdd4a32fadca47299f009c409f56ba0bdf99131d7611c04ee1a0b7ab27fbc5c",
-      "bytes": 45428979,
+      "jar_sha256": "ba111e03fd4c2f4d5100ea8f9340f33c4bc2b4a6b741536ac42af1b7844b233b",
+      "bytes": 45451132,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-neoforge-1.20.1",
@@ -92,11 +92,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-neoforge-1.20.1-0.3.0.jar",
-      "jar_sha256": "102e1dd0dd3bafd3e72597e014de320eed7211500deae8e9cca915017239dd19",
-      "bytes": 45428897,
+      "jar_sha256": "945cb164be9823efd75073e30cf90ae41d3ec3a431ef5b30bf68a983098cae8c",
+      "bytes": 45451051,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-fabric-1.21.1",
@@ -119,11 +119,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-fabric-1.21.1-0.3.0.jar",
-      "jar_sha256": "d47d7fd32b56e5ca23584c5c1a609f679c1b13082ee46c31bd8b1e9fbae7c270",
-      "bytes": 45428911,
+      "jar_sha256": "0963fa6b8faf4ca73ac5460f0fdda86247cc154261b7641044ee3bafc1dd34ce",
+      "bytes": 45452735,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-forge-1.21.1",
@@ -149,11 +149,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-forge-1.21.1-0.3.0.jar",
-      "jar_sha256": "fea5662b26c72a9eb2987818f540a544c808138aa510d32a047ca54f3ba2283f",
-      "bytes": 45427615,
+      "jar_sha256": "67476d3e70fb89283d8f6afba56fb44d625575845be7d8f49c30acba344b41b9",
+      "bytes": 45449462,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-neoforge-1.21.1",
@@ -179,11 +179,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-neoforge-1.21.1-0.3.0.jar",
-      "jar_sha256": "2d1a66d2dda18e9f3facdd87ece8edf7873b36fccc56ede5f64fec502884af6d",
-      "bytes": 45425943,
+      "jar_sha256": "a9632babeff5947b1a021b9ea5fb3f0c9c8f52510fd7b80d4b988fcb0338c241",
+      "bytes": 45449559,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-fabric-1.21.11",
@@ -206,11 +206,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-fabric-1.21.11-0.3.0.jar",
-      "jar_sha256": "a1fa238225ac33104512d02847cf83a6b20e2b535bc8a5f8663f4ce1692b8098",
-      "bytes": 45428506,
+      "jar_sha256": "fba7f9b3f3d63aa22aa74d960ec144069553f79d68288352008541e0c8cec6da",
+      "bytes": 45452476,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-forge-1.21.11",
@@ -236,11 +236,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-forge-1.21.11-0.3.0.jar",
-      "jar_sha256": "c4f8ce98ec35102ba11a2b91d7146aca1ae0d1e46fb072ac254134cbb0f241d7",
-      "bytes": 45425911,
+      "jar_sha256": "1b6d1f7768a9a1e3015116e7f1c7f1d3071fe9ee5a3185c99e7c18954d43acc1",
+      "bytes": 45447755,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-neoforge-1.21.11",
@@ -266,11 +266,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-neoforge-1.21.11-0.3.0.jar",
-      "jar_sha256": "abe5db42d5dcd41fa4a67eb2c1f7902e0687727dae9531c027b0f1e712651552",
-      "bytes": 45425965,
+      "jar_sha256": "bf7175d9a1aa7a9d6bfa3edb6e6bb33ca481c5ae56c98c8d88bef6bbd4272a19",
+      "bytes": 45449570,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-fabric-26.2",
@@ -293,11 +293,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-fabric-26.2-0.3.0.jar",
-      "jar_sha256": "e5790b0964883cb1cfc60a5e4791e0fbd66eccb63a022d0b4dfbc40fa4cc935d",
-      "bytes": 45436075,
+      "jar_sha256": "548aa8afaf109409a5b3a3b8557a0e2693dab08334950f8c1d6d47abfbc2047c",
+      "bytes": 45460055,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-forge-26.2",
@@ -324,11 +324,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-forge-26.2-0.3.0.jar",
-      "jar_sha256": "7fc7076b46094a6c745265aadd8ab23ecc642b000c05e113ed07d25eea1530de",
-      "bytes": 45427247,
+      "jar_sha256": "74867589ed80bed628fed414c4e18d7b89a2022d947aeeae2e36c437baacc65c",
+      "bytes": 45449105,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-neoforge-26.2",
@@ -354,11 +354,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-neoforge-26.2-0.3.0.jar",
-      "jar_sha256": "0b3cb44932ed72180af48f95f047f7ce2d2bf71e507547c2d10694124176a529",
-      "bytes": 45426794,
+      "jar_sha256": "1201bf07cc343160b41dac8b10fcbcabc433ffd56cacb1e7996ba952e4542683",
+      "bytes": 45450401,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-fabric-26.3",
@@ -381,11 +381,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-fabric-26.3-0.3.0.jar",
-      "jar_sha256": "f37f3c1f7dc1697bbc229d3ad06c713bed7347ad8c7e001b01e75cffdefacf00",
-      "bytes": 45436047,
+      "jar_sha256": "a351d2035f04678c22418852572035668a25ca620f74711fed3c77e023a4f5a7",
+      "bytes": 45459984,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-forge-26.3",
@@ -411,11 +411,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-forge-26.3-0.3.0.jar",
-      "jar_sha256": "a880d317d1121cd6d982624bb325d6e43eb60850c74e87b474b601c274acd96f",
-      "bytes": 45427214,
+      "jar_sha256": "c17daa3510f9aa1846a0f7f7d41e098fe2fbdd357df8dbfbf67b7f3817f9aed1",
+      "bytes": 45449040,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "mod-neoforge-26.3",
@@ -441,11 +441,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-neoforge-26.3-0.3.0.jar",
-      "jar_sha256": "ce36eed4f4eab2161abb41951fba8f1b07e23c98ee05d84819933fb3cbfc693e",
-      "bytes": 45426758,
+      "jar_sha256": "a5e04f5c92b9bda5515e13fad265d1bbeb5330783520c5d45fffcc5673a4f722",
+      "bytes": 45450328,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     },
     {
       "module": "plugin-paper",
@@ -468,11 +468,11 @@
         "linux-arm64/mclink-helper": "591f8382f8304e7f4141887f2e66229e6eba799dc4ca3eeb2c89786f9f470e64"
       },
       "jar": "tailcat-for-minecraft-paper-plugin-0.3.0.jar",
-      "jar_sha256": "0026cc9bfb3a2365c2e259bdbaa63e80917ca6b110371cc792d305b9359a93d2",
-      "bytes": 45384580,
+      "jar_sha256": "224438172a650e149a30e28e5c991adc26e9c1ba8795f63ae883febe71afd3a0",
+      "bytes": 45398122,
       "validation": "build-tests-and-artifact",
       "gameplay_verified": false,
-      "build_id": "20261010T173906Z"
+      "build_id": "20261011T142507Z"
     }
   ]
 }

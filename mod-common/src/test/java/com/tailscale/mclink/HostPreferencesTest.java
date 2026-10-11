@@ -11,8 +11,8 @@ class HostPreferencesTest {
 
     @Test void remembersRelayAndHostInclusiveLimitTogether() {
         HostPreferences preferences = new HostPreferences();
-        preferences.remember(true, 64);
-        assertEquals(new HostPreferences.Settings(true, 64), preferences.get());
+        preferences.remember(true, 1000);
+        assertEquals(new HostPreferences.Settings(true, 1000), preferences.get());
         preferences.remember(false, 2);
         assertEquals(new HostPreferences.Settings(false, 2), preferences.get());
     }
@@ -20,7 +20,7 @@ class HostPreferencesTest {
     @Test void invalidLimitDoesNotReplaceLastValidSettings() {
         HostPreferences preferences = new HostPreferences();
         preferences.remember(true, 64);
-        assertThrows(IllegalArgumentException.class, () -> preferences.remember(false, 65));
+        assertThrows(IllegalArgumentException.class, () -> preferences.remember(false, -1));
         assertThrows(IllegalArgumentException.class, () -> preferences.remember(false, 1));
         assertEquals(new HostPreferences.Settings(true, 64), preferences.get());
     }

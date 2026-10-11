@@ -8,13 +8,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.server.integrated.IntegratedServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
-import java.util.List;
-import java.util.UUID;
-import org.lwjgl.glfw.GLFW;
 
 public final class ShareScreen extends Screen {
     private final Screen parent;
@@ -29,8 +23,6 @@ public final class ShareScreen extends Screen {
     private boolean showInvite = false;
     private ButtonWidget copyButton;
     private int copyFeedbackTicks = 0;
-    private int playerScrollOffset = 0;
-    private static final int VISIBLE_PLAYER_ROWS = 2;
 
     public ShareScreen(Screen parent) {
         super(Text.translatable("mclink.share"));
@@ -72,6 +64,9 @@ public final class ShareScreen extends Screen {
 
         if (hosting) {
             int buttonY = height / 2 + 48;
+            addDrawableChild(ButtonWidget.builder(Text.translatable("mclink.connection_info"), b -> {
+                client.setScreen(new ConnectionStatusScreen(this));
+            }).dimensions(width / 2 - 102, height / 2 + 16, 204, 20).build());
             copyButton = addDrawableChild(ButtonWidget.builder(Text.translatable("mclink.copy"), b -> {
                 if (invite != null && client != null) {
                     client.keyboard.setClipboard(invite);
@@ -190,7 +185,6 @@ public final class ShareScreen extends Screen {
         if (client != null) {
             IntegratedServer server = client.getServer();
             if (server != null) {
-                UUID hostId = client.player != null ? client.player.getUuid() : null;
                 Text disconnectReason = Text.translatable("mclink.stopped_message");
                 server.execute(() -> {
                 for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
@@ -255,36 +249,6 @@ public final class ShareScreen extends Screen {
                 context.drawTextWithShadow(this.textRenderer, inviteDisplay, startX, inviteY, 0xFFAAAAAA);
             }
 
-            // Connected Players with Ping & Connection Mode
-            ScreenState state = McLinkClient.state();
-            ScreenState.TransportMode mode = state.getTransportMode();
-
-            List<ServerPlayerEntity> guests = getGuestPlayers();
-            if (guests.isEmpty()) {
-                context.drawCenteredTextWithShadow(this.textRenderer, Text.translatable("mclink.no_players"), centerX, currentY + 70, 0xFF888888);
-            } else {
-                Text countText = Text.translatable("mclink.connected_players", guests.size());
-                context.drawCenteredTextWithShadow(this.textRenderer, countText, centerX, currentY + 68, 0xFFFFFFFF);
-                playerScrollOffset = Math.min(playerScrollOffset, Math.max(0, guests.size() - VISIBLE_PLAYER_ROWS));
-                int playerY = currentY + 84;
-                for (int i = playerScrollOffset; i < Math.min(guests.size(), playerScrollOffset + VISIBLE_PLAYER_ROWS); i++) {
-                    ServerPlayerEntity player = guests.get(i);
-                    int latency = player.networkHandler.getLatency();
-                    Formatting pingFormat = latency < 80 ? Formatting.GREEN : (latency < 160 ? Formatting.YELLOW : Formatting.RED);
-
-                    MutableText line = Text.literal("• " + player.getName().getString() + "   ")
-                            .formatted(Formatting.WHITE)
-                            .append(Text.literal(latency + "ms").formatted(pingFormat))
-                            .append(Text.literal(" / " + state.routeLabel(player.networkHandler.getConnectionAddress())));
-
-                    context.drawCenteredTextWithShadow(this.textRenderer, line, centerX, playerY, 0xFFFFFFFF);
-                    playerY += 14;
-                }
-                if (guests.size() > VISIBLE_PLAYER_ROWS) {
-                    context.drawCenteredTextWithShadow(this.textRenderer, Text.translatable("mclink.scroll_players"), centerX,
-                            currentY + 84 + VISIBLE_PLAYER_ROWS * 14 + 2, 0xFFAAAAAA);
-                }
-            }
         } else {
             int currentY = height / 2 - 84;
             context.drawCenteredTextWithShadow(this.textRenderer, title, centerX, currentY, 0xFFFFFFFF);
@@ -299,13 +263,7 @@ public final class ShareScreen extends Screen {
 
 
     private void renderStatus(DrawContext context, int y, int rows) {
-        var state = McLinkClient.state();
-        var display = hostingLayout && state.isHosting()
-                ? (getGuestPlayers().isEmpty()
-                    ? Text.translatable("mclink.waiting_players")
-                    : Text.translatable("mclink.connection_path", state.getTransportMode().label()))
-                : status;
-        renderNote(context, display, y, rows);
+        renderNote(context, status, y, rows);
     }
 
     private void renderNote(DrawContext context, Text message, int y, int rows) {
@@ -341,42 +299,6 @@ public final class ShareScreen extends Screen {
 
     private Text relayOnlyLabel() {
         return Text.translatable(relayOnly ? "mclink.relay_only_enabled" : "mclink.relay_only_disabled");
-    }
-
-    private boolean scrollPlayers(int amount) {
-        int maxOffset = Math.max(0, getGuestPlayers().size() - VISIBLE_PLAYER_ROWS);
-        if (maxOffset == 0) return false;
-        playerScrollOffset = Math.max(0, Math.min(maxOffset, playerScrollOffset + amount));
-        return true;
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (McLinkClient.state().isHosting() && mouseX >= 0 && mouseX < width
-                && mouseY >= height / 2.0 - 6 && mouseY < height / 2.0 + 42
-                && horizontalAmount == 0 && verticalAmount != 0 && scrollPlayers(verticalAmount > 0 ? -1 : 1)) {
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (McLinkClient.state().isHosting() && getGuestPlayers().size() > VISIBLE_PLAYER_ROWS) {
-            if (keyCode == GLFW.GLFW_KEY_UP || keyCode == GLFW.GLFW_KEY_PAGE_UP) return scrollPlayers(-1);
-            if (keyCode == GLFW.GLFW_KEY_DOWN || keyCode == GLFW.GLFW_KEY_PAGE_DOWN) return scrollPlayers(1);
-        }
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    private List<ServerPlayerEntity> getGuestPlayers() {
-        if (client == null) return List.of();
-        IntegratedServer server = client.getServer();
-        if (server == null) return List.of();
-        UUID hostId = client.player != null ? client.player.getUuid() : null;
-        return server.getPlayerManager().getPlayerList().stream()
-                .filter(p -> McLinkClient.state().owns(p.networkHandler.getConnectionAddress()))
-                .toList();
     }
 
     private static String shorten(String value) {

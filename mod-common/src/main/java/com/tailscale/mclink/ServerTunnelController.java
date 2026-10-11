@@ -131,6 +131,10 @@ public final class ServerTunnelController<P extends AutoCloseable> implements Au
 
     public synchronized String invite() { return session != null && session.isAlive() ? invite : null; }
     public synchronized boolean owns(SocketAddress address) { return session != null && session.isAlive() && diagnostics.owns(address); }
+    public synchronized String route(SocketAddress address) { return owns(address) ? diagnostics.route(address) : "not_tailcat"; }
+    public synchronized int connectionStatus(SocketAddress address) {
+        return RouteStatus.encode(owns(address), route(address));
+    }
     public synchronized ServerTunnelConfig config() { return config; }
     public CompletableFuture<Path> diagnose() { return CompletableFuture.supplyAsync(() -> {
         try { return diagnostics.export(diagnosticDirectory, metadata); }

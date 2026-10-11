@@ -14,12 +14,22 @@ class HostPlayerLimitTest {
     @Test void sixtyFourIncludesHost() {
         assertEquals(64, HostPlayerLimit.minecraftLimit(BigInteger.valueOf(64)));
         assertEquals(BigInteger.valueOf(63), HostPlayerLimit.helperMaxConnections(BigInteger.valueOf(64)));
-        assertFalse(HostPlayerLimit.isValidPlayerCount(BigInteger.valueOf(65)));
+        assertTrue(HostPlayerLimit.isValidPlayerCount(BigInteger.valueOf(65)));
         assertFalse(HostPlayerLimit.isValidPlayerCount(BigInteger.ONE));
     }
     @Test void clampsOversizedRequests() {
-        assertEquals(64, HostPlayerLimit.minecraftLimit(BigInteger.TEN.pow(100)));
+        assertEquals(Integer.MAX_VALUE, HostPlayerLimit.minecraftLimit(BigInteger.TEN.pow(100)));
         assertEquals(2, HostPlayerLimit.minecraftLimit(BigInteger.ZERO));
+    }
+    @Test void largerCapacitiesReachMinecraftAndHelperWithoutSixtyFourClamp() {
+        for (int players : new int[]{65, 100, 1000, Integer.MAX_VALUE}) {
+            BigInteger requested = BigInteger.valueOf(players);
+            assertTrue(HostPlayerLimit.isValidPlayerCount(requested));
+            assertEquals(players, HostPlayerLimit.minecraftLimit(requested));
+            assertEquals(requested.subtract(BigInteger.ONE), HostPlayerLimit.helperMaxConnections(requested));
+            assertEquals(requested.multiply(BigInteger.valueOf(4)), HostPlayerLimit.tcpResourceLimit(requested));
+        }
+        assertFalse(HostPlayerLimit.isValidPlayerCount(BigInteger.valueOf(Integer.MAX_VALUE).add(BigInteger.ONE)));
     }
     @Test void restoresOriginalFieldOnlyOnce() {
         AtomicInteger count = new AtomicInteger(8);

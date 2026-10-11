@@ -43,11 +43,22 @@ public final class McLinkClient {
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         Screen screen = event.getScreen();
         Minecraft client = Minecraft.getInstance();
-        if (screen instanceof PauseScreen && client.hasSingleplayerServer()) {
-            addShareButton(client, screen, event);
+        if (screen instanceof PauseScreen) {
+            if (client.hasSingleplayerServer()) addShareButton(client, screen, event);
+            if (state.hasActiveSession() || ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen, event);
         } else if (screen instanceof JoinMultiplayerScreen) {
             addConnectButton(client, screen, screen.width, screen.height, event);
         }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLoggingIn(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingIn event) {
+        RouteStatusCache.beginSession(event.getConnection());
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLoggingOut(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
+        RouteStatusCache.endSession(event.getConnection());
     }
 
     @SubscribeEvent
@@ -117,6 +128,21 @@ public final class McLinkClient {
         }
 
         event.addListener(tailcatButton);
+    }
+
+    private static void addStatusButton(Minecraft client, Screen screen, ScreenEvent.Init.Post event) {
+        if (findButton(event, "mclink.status") != null) return;
+        Button anchor = findButton(event, "menu.options");
+        int y = anchor == null ? screen.height - 48 : anchor.getY() + anchor.getHeight() + 4;
+        if (anchor != null) {
+            for (GuiEventListener listener : event.getListenersList()) {
+                if (listener instanceof Button button && button != anchor && button.getY() > anchor.getY()) button.setY(button.getY() + 24);
+            }
+        }
+        int buttonWidth = Math.min(204, Math.max(1, screen.width - 32));
+        event.addListener(Button.builder(Component.translatable("mclink.status"),
+                        button -> client.gui.setScreen(new ConnectionStatusScreen(screen)))
+                .bounds((screen.width - buttonWidth) / 2, y, buttonWidth, 20).build());
     }
 
     private static void addConnectButton(Minecraft client, Screen screen, int width, int height, ScreenEvent.Init.Post event) {

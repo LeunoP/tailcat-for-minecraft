@@ -103,10 +103,14 @@ public final class TailcatCommands {
     private static Text formatPlayerLine(ServerPlayerEntity player) {
         int ping = player.networkHandler != null ? player.networkHandler.getLatency() : 0;
 
+        SocketAddress address = player.networkHandler == null ? null : player.networkHandler.getConnectionAddress();
+        String route = RouteStatus.commandLabel(ServerShareHandler.connectionStatus(address), ServerShareHandler.language());
+
         return Text.literal("[ ")
             .formatted(Formatting.GRAY)
             .append(Text.literal(player.getName().getString()).formatted(Formatting.GREEN))
             .append(Text.literal(" ] ").formatted(Formatting.GRAY))
+            .append(Text.literal(route + " ").formatted(Formatting.AQUA))
             .append(Text.literal(ping + "ms").formatted(Formatting.WHITE));
     }
 }

@@ -108,10 +108,14 @@ public final class TailcatCommands {
     private static Component formatPlayerLine(ServerPlayer player) {
         int ping = player.connection != null ? player.connection.latency() : 0;
 
+        SocketAddress address = player.connection == null ? null : player.connection.getRemoteAddress();
+        String route = RouteStatus.commandLabel(ServerShareHandler.connectionStatus(address), ServerShareHandler.language());
+
         return Component.literal("[ ")
             .withStyle(ChatFormatting.GRAY)
             .append(Component.literal(player.getScoreboardName()).withStyle(ChatFormatting.GREEN))
             .append(Component.literal(" ] ").withStyle(ChatFormatting.GRAY))
+            .append(Component.literal(route + " ").withStyle(ChatFormatting.AQUA))
             .append(Component.literal(ping + "ms").withStyle(ChatFormatting.WHITE));
     }
 }
