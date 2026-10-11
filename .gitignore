@@ -30,3 +30,8 @@ tailscale_icon.png
 tailcat-upstream/
 bin/
 **/bin/
+
+# Machine-specific paths and local implementation notes
+/docs/FEATURE_IMPLEMENTATION.md
+/docs/PREPARATION_IMPLEMENTATION.md
+/scripts/test_instances.py
