@@ -36,4 +36,5 @@ bin/
 /anti-slop/
 /docs/FEATURE_IMPLEMENTATION.md
 /docs/PREPARATION_IMPLEMENTATION.md
+/docs/FEATURE_PLAN.md
 /scripts/test_instances.py
