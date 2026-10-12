@@ -2,9 +2,12 @@ modLoader="javafml"
 loaderVersion="[11,)"
 license="BSD-3-Clause"
 
+[[mixins]]
+config="mclink.mixins.json"
+
 [[mods]]
 modId="mclink"
-version="0.2.1"
+version="${version}"
 displayName="Tailcat for Minecraft (NeoForge)"
 authors="Tailscale, DeepMind"
 description='''Peer-to-peer LAN multiplayer over Tailscale Tailcat'''

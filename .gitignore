@@ -21,6 +21,8 @@ helper/bin/
 .stfolder/
 
 # Local diagnostics and temporary files
+artifacts/
+/dist/manifests/
 *.log
 *.tmp
 hs_err_pid*
@@ -30,3 +32,10 @@ tailscale_icon.png
 tailcat-upstream/
 bin/
 **/bin/
+
+# Machine-specific paths and local implementation notes
+/anti-slop/
+/docs/FEATURE_IMPLEMENTATION.md
+/docs/PREPARATION_IMPLEMENTATION.md
+/docs/FEATURE_PLAN.md
+/scripts/test_instances.py

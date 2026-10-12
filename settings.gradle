@@ -8,6 +8,7 @@ rootProject.name = 'tailcat-for-minecraft'
 
 include 'mod-fabric-26.2'
 include 'plugin-paper'
+include 'mod-common'
 
 includeBuild 'mod-fabric-1.21.11'
 includeBuild 'mod-fabric-1.21.1'

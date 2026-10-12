@@ -1,22 +1,25 @@
 package com.tailscale.mclink;
 
+import java.math.BigInteger;
+
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.PlayerList;
-import net.minecraft.ChatFormatting;
-
-import java.util.List;
-import java.util.UUID;
 
 public final class ShareScreen extends Screen {
     private final Screen parent;
     private String invite;
     private boolean starting;
+    private boolean hostingLayout;
     private Component status;
+    private boolean relayOnly;
+    private String maxPlayersText = "8";
+    private EditBox playerCountInput;
+    private Button startButton;
     private boolean showInvite = false;
     private Button copyButton;
     private int copyFeedbackTicks = 0;
@@ -24,6 +27,9 @@ public final class ShareScreen extends Screen {
     public ShareScreen(Screen parent) {
         super(Component.translatable("mclink.share"));
         this.parent = parent;
+        var remembered = HostPreferences.SESSION.get();
+        relayOnly = remembered.relayOnly();
+        maxPlayersText = Integer.toString(remembered.maxPlayers());
         this.invite = McLinkClient.state().getInvite();
         if (McLinkClient.state().isHosting()) {
             this.status = Component.translatable("mclink.sharing");
@@ -33,8 +39,20 @@ public final class ShareScreen extends Screen {
     }
 
     @Override
+    public boolean isPauseScreen() {
+        ScreenState state = McLinkClient.state();
+        return !starting && !state.isHosting() && !state.isRestoring();
+    }
+
+    @Override
     public void tick() {
         super.tick();
+        if (hostingLayout && !starting && !McLinkClient.state().isHosting()) {
+            invite = null;
+            status = Component.translatable(McLinkClient.state().phaseKey());
+            rebuildWidgets();
+        }
+        if (starting) status = Component.translatable(McLinkClient.state().phaseKey());
         if (copyFeedbackTicks > 0) {
             copyFeedbackTicks--;
             if (copyFeedbackTicks == 0 && copyButton != null) {
@@ -46,10 +64,15 @@ public final class ShareScreen extends Screen {
     @Override
     protected void init() {
         clearWidgets();
-        boolean hosting = McLinkClient.state().isHosting();
+        startButton = null;
+        boolean hosting = McLinkClient.state().isHosting() && !starting;
+        hostingLayout = hosting;
 
         if (hosting) {
             int buttonY = height / 2 + 48;
+            addRenderableWidget(Button.builder(Component.translatable("mclink.connection_info"), b -> {
+                minecraft.setScreen(new ConnectionStatusScreen(this));
+            }).bounds(width / 2 - 102, height / 2 + 16, 204, 20).build());
             copyButton = addRenderableWidget(Button.builder(Component.translatable("mclink.copy"), b -> {
                 if (invite != null && minecraft != null) {
                     minecraft.keyboardHandler.setClipboard(invite);
@@ -74,7 +97,7 @@ public final class ShareScreen extends Screen {
                 int btnW = 34;
                 int totalW = textW + 6 + btnW;
                 int startX = (width - totalW) / 2;
-                int inviteY = height / 2 - 38;
+                int inviteY = height / 2 - 54;
 
                 addRenderableWidget(Button.builder(
                         showInvite ? Component.translatable("mclink.hide") : Component.translatable("mclink.show"),
@@ -92,7 +115,7 @@ public final class ShareScreen extends Screen {
                         minecraft.execute(() -> {
                             starting = false;
                             if (error != null) {
-                                status = Component.literal("Could not share: " + rootMessage(error));
+                                status = Component.translatable("mclink.error_share", Component.translatable(FailureGuide.key(error)));
                             } else {
                                 invite = value;
                                 status = Component.translatable("mclink.sharing");
@@ -103,31 +126,55 @@ public final class ShareScreen extends Screen {
                 });
             }
         } else {
-            int buttonY = height / 2 + 20;
-            Button startBtn = Button.builder(Component.translatable("mclink.start"), b -> {
+            int buttonY = height / 2 + 40;
+            playerCountInput = new EditBox(font, width / 2 - 102, height / 2 + 12, 204, 20,
+                    Component.translatable("mclink.next_share_capacity"));
+            playerCountInput.setMaxLength(10);
+            playerCountInput.setFilter(value -> value.matches("[0-9]*"));
+            playerCountInput.setHint(Component.translatable("mclink.max_players_hint"));
+            playerCountInput.setValue(maxPlayersText);
+            playerCountInput.setEditable(!starting);
+            playerCountInput.setResponder(value -> {
+                maxPlayersText = value;
+                if (startButton != null) {
+                    startButton.active = !starting && validPlayerCount();
+                }
+            });
+            addRenderableWidget(playerCountInput);
+
+            Button relayButton = addRenderableWidget(Button.builder(relayOnlyLabel(), b -> {
+                relayOnly = !relayOnly;
+                rememberHostSettings();
+                rebuildWidgets();
+            }).bounds(width / 2 - 102, height / 2 - 24, 204, 20).build());
+            relayButton.active = !starting;
+
+            startButton = addRenderableWidget(Button.builder(Component.translatable("mclink.start"), b -> {
                 startSharing();
-            }).bounds(width / 2 - 102, buttonY, 100, 20).build();
-            startBtn.active = !starting;
-            addRenderableWidget(startBtn);
+            }).bounds(width / 2 - 102, buttonY, 100, 20).build());
+            startButton.active = !starting && validPlayerCount();
 
             addRenderableWidget(Button.builder(Component.translatable("gui.back"), b -> {
                 onClose();
             }).bounds(width / 2 + 2, buttonY, 100, 20).build());
+            setInitialFocus(playerCountInput);
         }
     }
 
     private void startSharing() {
-        if (starting) return;
+        if (starting || !validPlayerCount()) return;
+        BigInteger maxPlayers = new BigInteger(maxPlayersText);
+        rememberHostSettings();
         starting = true;
         status = Component.translatable("mclink.starting");
         rebuildWidgets();
 
-        McLinkClient.state().share(minecraft).whenComplete((value, error) -> {
+        McLinkClient.state().share(minecraft, relayOnly, maxPlayers).whenComplete((value, error) -> {
             if (minecraft != null) {
                 minecraft.execute(() -> {
                     starting = false;
                     if (error != null) {
-                        status = Component.literal("Could not share: " + rootMessage(error));
+                        status = Component.translatable("mclink.error_share", Component.translatable(FailureGuide.key(error)));
                         rebuildWidgets();
                     } else {
                         invite = value;
@@ -140,22 +187,24 @@ public final class ShareScreen extends Screen {
     }
 
     private void stopSharing() {
+        Runnable stopCurrentSession = McLinkClient.state().stopAction();
         if (minecraft != null && minecraft.getSingleplayerServer() != null) {
-            UUID hostId = minecraft.player != null ? minecraft.player.getUUID() : null;
             PlayerList playerList = minecraft.getSingleplayerServer().getPlayerList();
             Component disconnectReason = Component.translatable("mclink.stopped_message");
+            minecraft.getSingleplayerServer().execute(() -> {
             for (ServerPlayer player : playerList.getPlayers()) {
-                if (hostId == null || !player.getUUID().equals(hostId)) {
+                if (McLinkClient.state().owns(player.connection.getRemoteAddress())) {
                     player.connection.disconnect(disconnectReason);
                 }
             }
+            });
         }
 
         Thread.ofVirtual().start(() -> {
             try {
                 Thread.sleep(250);
             } catch (InterruptedException ignored) {}
-            McLinkClient.state().stop();
+            if (minecraft != null) minecraft.execute(stopCurrentSession);
             if (minecraft != null) {
                 minecraft.execute(() -> {
                     invite = null;
@@ -168,6 +217,7 @@ public final class ShareScreen extends Screen {
 
     @Override
     public void onClose() {
+        rememberHostSettings();
         if (minecraft != null) {
             minecraft.setScreen(parent);
         }
@@ -179,16 +229,17 @@ public final class ShareScreen extends Screen {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         int centerX = width / 2;
-        boolean hosting = McLinkClient.state().isHosting();
+        boolean hosting = hostingLayout;
 
         if (hosting) {
-            int currentY = height / 2 - 70;
+            int currentY = height / 2 - 86;
 
             // Title
             guiGraphics.drawCenteredString(this.font, title, centerX, currentY, 0xFFFFFFFF);
 
             // Status
-            guiGraphics.drawCenteredString(this.font, status, centerX, currentY + 16, 0xFFDDDDDD);
+            renderStatus(guiGraphics, currentY + 16, 1);
+            renderNote(guiGraphics, Component.translatable("mclink.current_capacity", currentMaxPlayers()), currentY + 50, 1);
 
             // Invite code (masked / unmasked)
             if (invite != null) {
@@ -202,42 +253,56 @@ public final class ShareScreen extends Screen {
                 guiGraphics.drawString(this.font, inviteDisplay, startX, inviteY, 0xFFAAAAAA);
             }
 
-            // Connected Players with Ping & Connection Mode
-            ScreenState state = McLinkClient.state();
-            ScreenState.TransportMode mode = state.getTransportMode();
-
-            List<ServerPlayer> guests = getGuestPlayers();
-            if (guests.isEmpty()) {
-                guiGraphics.drawCenteredString(this.font, Component.translatable("mclink.no_players"), centerX, currentY + 54, 0xFF888888);
-            } else {
-                Component countText = Component.translatable("mclink.connected_players", guests.size());
-                guiGraphics.drawCenteredString(this.font, countText, centerX, currentY + 52, 0xFFFFFFFF);
-                int playerY = currentY + 68;
-                for (ServerPlayer player : guests) {
-                    int latency = player.connection.latency();
-                    ChatFormatting pingFormat = latency < 80 ? ChatFormatting.GREEN : (latency < 160 ? ChatFormatting.YELLOW : ChatFormatting.RED);
-
-                    MutableComponent line = Component.literal("• " + player.getScoreboardName() + "   ")
-                            .withStyle(ChatFormatting.WHITE)
-                            .append(Component.literal(latency + "ms").withStyle(pingFormat));
-
-                    guiGraphics.drawCenteredString(this.font, line, centerX, playerY, 0xFFFFFFFF);
-                    playerY += 14;
-                }
-            }
         } else {
-            int currentY = height / 2 - 30;
+            int currentY = height / 2 - 84;
             guiGraphics.drawCenteredString(this.font, title, centerX, currentY, 0xFFFFFFFF);
-            guiGraphics.drawCenteredString(this.font, status, centerX, currentY + 20, 0xFFDDDDDD);
+            renderStatus(guiGraphics, currentY + 20, 2);
+            renderNote(guiGraphics, Component.translatable("mclink.current_capacity", currentMaxPlayers()), height / 2 - 38, 1);
+            renderNote(guiGraphics, Component.translatable("mclink.next_share_capacity"), height / 2 + 1, 1);
+        }
+        if (preservesExistingLan()) {
+            renderNote(guiGraphics, Component.translatable("mclink.existing_lan_kept"), height / 2 + (hosting ? 100 : 66), 2);
         }
     }
 
-    private List<ServerPlayer> getGuestPlayers() {
-        if (minecraft == null || minecraft.getSingleplayerServer() == null) return List.of();
-        UUID hostId = minecraft.player != null ? minecraft.player.getUUID() : null;
-        return minecraft.getSingleplayerServer().getPlayerList().getPlayers().stream()
-                .filter(p -> hostId == null || !p.getUUID().equals(hostId))
-                .toList();
+
+    private void renderStatus(GuiGraphics guiGraphics, int y, int rows) {
+        renderNote(guiGraphics, status, y, rows);
+    }
+
+    private void renderNote(GuiGraphics guiGraphics, Component message, int y, int rows) {
+        var lines = font.split(message, Math.max(1, Math.min(300, width - 32)));
+        int visible = Math.min(rows, lines.size());
+        if (visible == 0) return;
+        for (int i = 0; i < visible; i++) {
+            guiGraphics.drawCenteredString(font, lines.get(i), width / 2, y + i * 10, 0xFFDDDDDD);
+        }
+    }
+
+    private int currentMaxPlayers() {
+        var server = minecraft == null ? null : minecraft.getSingleplayerServer();
+        return server == null ? 0 : server.getPlayerList().getMaxPlayers();
+    }
+
+    private boolean preservesExistingLan() {
+        var server = minecraft == null ? null : minecraft.getSingleplayerServer();
+        if (server == null) return false;
+        return McLinkClient.state().isHosting() ? McLinkClient.state().keepsExistingLan() : server.getPort() > 0;
+    }
+
+    private void rememberHostSettings() {
+        var previous = HostPreferences.SESSION.get();
+        int count = validPlayerCount() ? new BigInteger(maxPlayersText).intValue() : previous.maxPlayers();
+        HostPreferences.SESSION.remember(relayOnly, count);
+    }
+
+    private boolean validPlayerCount() {
+        return !maxPlayersText.isEmpty()
+                && HostPlayerLimit.isValidPlayerCount(new BigInteger(maxPlayersText));
+    }
+
+    private Component relayOnlyLabel() {
+        return Component.translatable(relayOnly ? "mclink.relay_only_enabled" : "mclink.relay_only_disabled");
     }
 
     private static String shorten(String value) {

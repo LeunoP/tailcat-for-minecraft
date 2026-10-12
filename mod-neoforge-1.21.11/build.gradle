@@ -2,8 +2,12 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.146'
 }
 
-version = '0.2.1'
+version = '0.3.1'
 group = 'com.tailscale.tailcat.minecraft'
+
+repositories {
+    maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+}
 
 base {
     archivesName = 'tailcat-for-minecraft-neoforge-1.21.11'
@@ -13,8 +17,16 @@ neoForge {
     version = '21.11.42'
 }
 
+dependencies {
+    compileOnly 'org.spongepowered:mixin:0.8.7'
+    annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
+}
+
 sourceSets {
     main {
+        java {
+            srcDir file('../mod-common/src/main/java')
+        }
         resources {
             srcDir file('../mod-common/src/main/resources')
         }
@@ -22,6 +34,7 @@ sourceSets {
 }
 
 processResources {
+    filesMatching('tailcat-build.properties') { expand version: project.version }
     inputs.property 'version', project.version
     filesMatching('META-INF/neoforge.mods.toml') {
         expand 'version': project.version
@@ -30,9 +43,14 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
     options.release = 21
+    options.compilerArgs += ["-AoutRefMapFile=${layout.buildDirectory.file('classes/java/main/mclink.refmap.json').get().asFile}"]
 }
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+    manifest.attributes(['MixinConfigs': 'mclink.mixins.json'])
 }

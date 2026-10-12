@@ -3,10 +3,12 @@ plugins {
 }
 
 group = 'com.tailscale.tailcat.minecraft'
-version = '0.2.1'
+version = '0.3.1'
 base {
     archivesName = 'tailcat-for-minecraft-paper-plugin'
 }
+
+sourceSets.main.java.srcDir file('../mod-common/src/main/java')
 
 java {
     toolchain {
@@ -39,6 +41,10 @@ dependencies {
 }
 
 processResources {
+    filesMatching('tailcat-build.properties') { expand version: project.version }
+    from('../mod-common/src/main/resources/tailcat-build.properties')
+    from('../mod-common/src/main/resources/META-INF/licenses') { into 'META-INF/licenses' }
+    from('../mod-common/src/main/resources/assets/mclink/lang') { into 'assets/mclink/lang' }
     def props = [version: version]
     inputs.properties props
     filteringCharset 'UTF-8'

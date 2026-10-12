@@ -1,0 +1,129 @@
+package com.tailscale.mclink;
+
+import com.mojang.brigadier.CommandDispatcher;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.server.level.ServerPlayer;
+
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+
+public final class TailcatCommands {
+    private TailcatCommands() {}
+
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
+                                CommandBuildContext buildContext,
+                                Commands.CommandSelection selection) {
+        dispatcher.register(
+            Commands.literal("tailcat")
+                .executes(ctx -> handleStatusOrInvite(ctx.getSource()))
+                .then(Commands.literal("invite")
+                    .requires(Commands.hasPermission(Commands.LEVEL_ADMINS))
+                    .executes(ctx -> showInvite(ctx.getSource())))
+                .then(Commands.literal("start")
+                    .requires(Commands.hasPermission(Commands.LEVEL_ADMINS))
+                    .executes(ctx -> operate(ctx.getSource(), "start")))
+                .then(Commands.literal("stop")
+                    .requires(Commands.hasPermission(Commands.LEVEL_ADMINS))
+                    .executes(ctx -> operate(ctx.getSource(), "stop")))
+                .then(Commands.literal("restart")
+                    .requires(Commands.hasPermission(Commands.LEVEL_ADMINS))
+                    .executes(ctx -> operate(ctx.getSource(), "restart")))
+                .then(Commands.literal("status")
+                    .executes(ctx -> showStatus(ctx.getSource())))
+        );
+    }
+
+    private static int handleStatusOrInvite(CommandSourceStack source) {
+        return showStatus(source);
+    }
+
+    private static int showInvite(CommandSourceStack source) {
+        String invite = ServerShareHandler.getCurrentInvite();
+        if (invite != null && !invite.isBlank()) {
+            Component inviteComponent = Component.literal(invite)
+                .withStyle(Style.EMPTY
+                    .withColor(ChatFormatting.YELLOW)
+                    .withUnderlined(true)
+                    .withClickEvent(new ClickEvent.CopyToClipboard(invite))
+                    .withHoverEvent(new HoverEvent.ShowText(Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.copy_hint")))));
+
+            source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.invite_label"))
+                .withStyle(ChatFormatting.GREEN)
+                .append(inviteComponent), false);
+
+            source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.invite_hint"))
+                .withStyle(ChatFormatting.GRAY), false);
+        } else {
+            source.sendFailure(Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.inactive")));
+        }
+        return 1;
+    }
+
+    private static int showStatus(CommandSourceStack source) {
+        ServerPlayer executingPlayer = source.getPlayer();
+        boolean isAdmin = Commands.LEVEL_ADMINS.check(source.permissions());
+
+        if (isAdmin) {
+            source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.status_title")).withStyle(ChatFormatting.GOLD), false);
+            int count = 0;
+            for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
+                source.sendSuccess(() -> formatPlayerLine(player), false);
+                count++;
+            }
+            if (count == 0) {
+                source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.no_players")).withStyle(ChatFormatting.GRAY), false);
+            }
+        } else if (executingPlayer != null) {
+            source.sendSuccess(() -> formatPlayerLine(executingPlayer), false);
+        } else {
+            source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.console_permission")).withStyle(ChatFormatting.GRAY), false);
+        }
+        return 1;
+    }
+
+    private static int operate(CommandSourceStack source, String action) {
+        ServerShareHandler.operate(source.getServer(), action).whenComplete((result, error) ->
+                source.getServer().execute(() -> source.sendSuccess(() -> Component.literal(
+                        ServerMessages.response(ServerShareHandler.language(), action, error == null, result)), false)));
+        return 1;
+    }
+
+    private static boolean isTailcatPlayer(ServerPlayer player) {
+        if (player.connection == null) return false;
+        SocketAddress sa = player.connection.getRemoteAddress();
+        return ServerShareHandler.owns(sa);
+    }
+
+    private static Component formatPlayerLine(ServerPlayer player) {
+        int ping = player.connection != null ? player.connection.latency() : 0;
+
+        SocketAddress address = player.connection == null ? null : player.connection.getRemoteAddress();
+        int status = RouteStatusLiveness.effectiveStatus(player.getUUID(),
+                ServerShareHandler.connectionStatus(address), false);
+        String route = RouteStatus.commandLabel(status, ServerShareHandler.language());
+
+        return Component.literal("[ ")
+            .withStyle(ChatFormatting.GRAY)
+            .append(Component.literal(player.getScoreboardName()).withStyle(ChatFormatting.GREEN))
+            .append(Component.literal(" ] ").withStyle(ChatFormatting.GRAY))
+            .append(Component.literal(route + " ").withStyle(routeColor(status)))
+            .append(Component.literal(ping + "ms").withStyle(ChatFormatting.WHITE));
+    }
+
+    private static ChatFormatting routeColor(int status) {
+        return switch (status) {
+            case RouteStatus.NOT_TAILCAT -> ChatFormatting.BLUE;
+            case RouteStatus.DIRECT -> ChatFormatting.GREEN;
+            case RouteStatus.RELAY -> ChatFormatting.GOLD;
+            case RouteStatus.DISCONNECTED -> ChatFormatting.RED;
+            default -> ChatFormatting.YELLOW;
+        };
+    }
+}

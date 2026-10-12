@@ -4,6 +4,8 @@ import com.tailscale.mclink.mixin.JoinMultiplayerScreenAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.client.Minecraft;
@@ -27,20 +29,31 @@ public final class McLinkClient implements ClientModInitializer {
     private static ScreenState state;
 
     @Override public void onInitializeClient() {
+        RouteStatusPublisher.registerPayload();
+        RouteStatusPublisher.registerHeartbeatReceiver();
+        ClientPlayConnectionEvents.INIT.register((handler, client) -> {
+            var connection = handler.getConnection();
+            RouteStatusCache.beginSession(connection);
+            ClientPlayNetworking.registerReceiver(RouteStatusPublisher.TYPE,
+                    (payload, context) -> client.execute(() -> RouteStatusPublisher.receive(connection, payload)));
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> RouteStatusCache.endSession(handler.getConnection()));
         state = new ScreenState();
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
-            if (screen instanceof PauseScreen && client.hasSingleplayerServer()) {
-                addShareButton(client, screen);
+            if (screen instanceof PauseScreen) {
+                if (client.hasSingleplayerServer()) addShareButton(client, screen);
+                if (ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen);
             } else if (screen instanceof JoinMultiplayerScreen) {
                 addConnectButton(client, screen, width, height);
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            RouteStatusPublisher.sendHeartbeat(client);
             state.tick(client);
             String error = state.takeError();
             if (error != null) {
                 SystemToast.add(client.gui.toastManager(), SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
-                        Component.literal("Remote LAN connection failed"), Component.literal(error));
+                        Component.translatable("mclink.connection_failed"), Component.literal(error));
             }
         });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> state.close());
@@ -94,8 +107,23 @@ public final class McLinkClient implements ClientModInitializer {
         widgets.add(tailcatButton);
     }
 
+    private static void addStatusButton(Minecraft client, Screen screen) {
+        if (findButton(screen, "mclink.status") != null) return;
+        Button anchor = findButton(screen, "menu.options");
+        int y = anchor == null ? screen.height - 48 : anchor.getY() + anchor.getHeight() + 4;
+        if (anchor != null) {
+            Screens.getWidgets(screen).stream().filter(Button.class::isInstance).map(Button.class::cast)
+                    .filter(button -> button != anchor && button.getY() > anchor.getY())
+                    .forEach(button -> button.setY(button.getY() + 24));
+        }
+        int buttonWidth = Math.min(204, Math.max(1, screen.width - 32));
+        Screens.getWidgets(screen).add(Button.builder(Component.translatable("mclink.status"),
+                        button -> client.gui.setScreen(new ConnectionStatusScreen(screen)))
+                .bounds((screen.width - buttonWidth) / 2, y, buttonWidth, 20).build());
+    }
+
     private static void addConnectButton(Minecraft client, Screen screen, int width, int height) {
-        if (findButton(screen, "mclink.join") != null) return;
+        Button tailcatButton = findButton(screen, "mclink.join");
         if (!(screen instanceof JoinMultiplayerScreen multiplayerScreen)) return;
 
         HeaderAndFooterLayout layout = ((JoinMultiplayerScreenAccessor) multiplayerScreen).mclink$getLayout();
@@ -109,11 +137,16 @@ public final class McLinkClient implements ClientModInitializer {
         });
 
         if (footerHolder[0] != null) {
-            Button tailcatButton = Button.builder(Component.translatable("mclink.join"),
-                            button -> client.gui.setScreen(new JoinRemoteScreen(screen)))
-                    .width(308).build();
-            footerHolder[0].addChild(tailcatButton);
-            Screens.getWidgets(screen).add(tailcatButton);
+            int connectWidth = Math.min(308, Math.max(1, width - 32));
+            if (tailcatButton == null) {
+                tailcatButton = Button.builder(Component.translatable("mclink.join"),
+                                button -> client.gui.setScreen(new JoinRemoteScreen(screen)))
+                        .width(connectWidth).build();
+                footerHolder[0].addChild(tailcatButton);
+                Screens.getWidgets(screen).add(tailcatButton);
+            } else {
+                tailcatButton.setWidth(connectWidth);
+            }
             layout.setFooterHeight(88);
             layout.arrangeElements();
             for (var child : screen.children()) {

@@ -1,0 +1,8 @@
+{
+  "windows-amd64/mclink-helper.exe": "7ff598c7f37682c6aa21610c6f0e6c617f96e12078da63d0927583ca71195db8",
+  "windows-arm64/mclink-helper.exe": "ab33cdc563393c1e36ba6b6be1b715e636cd5c25f3df838f16c3280e082d343b",
+  "darwin-amd64/mclink-helper": "7a44348033debbfe92e67ff8acb544651f8e74c56bbd0a383dd06fbdee303e2f",
+  "darwin-arm64/mclink-helper": "e22ccd70ea9bfe9ef4a58773cbbf3bc8f85cbd2729ac881553b988759f0c26af",
+  "linux-amd64/mclink-helper": "aa5d00c95100eb4df7dc0dd82995738c0d061e4d289a36170cb23f756d711f95",
+  "linux-arm64/mclink-helper": "b140fa8b1422eddc8eeb2a895806c6eeefd6ecf99aa5f83ff95b8ec9ee5acfa0"
+}

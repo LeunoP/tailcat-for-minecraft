@@ -24,6 +24,7 @@ public final class McLinkClient {
     private static ScreenState state = new ScreenState();
 
     public McLinkClient() {
+        RouteStatusPublisher.initialize();
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onClientSetup);
     }
 
@@ -39,11 +40,22 @@ public final class McLinkClient {
     public static final class McLinkEvents {
 
         @SubscribeEvent
+        public static void onPlayerLoggingIn(net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingIn event) {
+            RouteStatusCache.beginSession(event.getConnection());
+        }
+
+        @SubscribeEvent
+        public static void onPlayerLoggingOut(net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
+            RouteStatusCache.endSession(event.getConnection());
+        }
+
+        @SubscribeEvent
         public static void onScreenInit(ScreenEvent.Init.Post event) {
             Screen screen = event.getScreen();
             Minecraft client = Minecraft.getInstance();
-            if (screen instanceof PauseScreen && client.hasSingleplayerServer()) {
-                addShareButton(client, screen, event);
+            if (screen instanceof PauseScreen) {
+                if (client.hasSingleplayerServer()) addShareButton(client, screen, event);
+                if (ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen, event);
             } else if (screen instanceof JoinMultiplayerScreen) {
                 addConnectButton(client, screen, screen.width, screen.height, event);
             }
@@ -53,13 +65,14 @@ public final class McLinkClient {
         public static void onClientTick(TickEvent.ClientTickEvent event) {
             if (event.phase != Phase.END) return;
             Minecraft client = Minecraft.getInstance();
+            RouteStatusPublisher.sendHeartbeat();
             state.tick(client);
             String error = state.takeError();
             if (error != null) {
                 SystemToast.add(
                     client.getToasts(),
                     SystemToast.SystemToastIds.PERIODIC_NOTIFICATION,
-                    Component.literal("Remote LAN connection failed"),
+                    Component.translatable("mclink.connection_failed"),
                     Component.literal(error)
                 );
             }
@@ -90,19 +103,55 @@ public final class McLinkClient {
         event.addListener(shareBtn);
     }
 
+    private static void addStatusButton(Minecraft client, Screen screen, ScreenEvent.Init.Post event) {
+        if (findButton(event, "mclink.status") != null) return;
+        Button share = findButton(event, "mclink.share");
+        int x;
+        int y;
+        int width;
+        if (share != null) {
+            y = share.getY();
+            width = 100;
+            share.setX(screen.width / 2 - 102);
+            share.setWidth(width);
+            x = screen.width / 2 + 2;
+        } else {
+            Button anchor = findButton(event, "menu.options");
+            y = anchor == null ? screen.height - 48 : anchor.getY() + anchor.getHeight() + 4;
+            if (anchor != null) {
+                for (GuiEventListener listener : event.getListenersList()) {
+                    if (listener instanceof Button button && button != anchor && button.getY() > anchor.getY()) button.setY(button.getY() + 24);
+                }
+            }
+            width = Math.min(204, Math.max(1, screen.width - 32));
+            x = (screen.width - width) / 2;
+        }
+        event.addListener(Button.builder(Component.translatable("mclink.status"),
+                        button -> client.setScreen(new ConnectionStatusScreen(screen)))
+                .bounds(x, y, width, 20).build());
+    }
+
     private static void addConnectButton(Minecraft client, Screen screen, int width, int height, ScreenEvent.Init.Post event) {
-        if (findButton(event, "mclink.join") != null) return;
+        Button connect = findButton(event, "mclink.join");
         Button direct = findButton(event, "selectServer.direct");
         if (direct == null) return;
 
-        int row3Y = 0;
-        for (GuiEventListener listener : event.getListenersList()) {
-            if (listener instanceof Button b) {
-                if (b.getY() > row3Y) {
-                    row3Y = b.getY();
-                }
-                b.setY(b.getY() - 24);
-            }
+        int row1Y = height - 76;
+        int row2Y = height - 52;
+        int connectY = height - 28;
+        int connectWidth = Math.min(204, Math.max(1, width - 32));
+        int connectX = (width - connectWidth) / 2;
+
+        setButtonY(event, "selectServer.select", row1Y);
+        setButtonY(event, "selectServer.direct", row1Y);
+        setButtonY(event, "selectServer.add", row1Y);
+        setButtonY(event, "selectServer.edit", row2Y);
+        setButtonY(event, "selectServer.delete", row2Y);
+        setButtonY(event, "selectServer.refresh", row2Y);
+        setButtonY(event, "gui.cancel", row2Y);
+        if (connect != null) {
+            connect.setPosition(connectX, connectY);
+            connect.setWidth(connectWidth);
         }
 
         for (GuiEventListener child : screen.children()) {
@@ -112,11 +161,18 @@ public final class McLinkClient {
             }
         }
 
-        Button joinBtn = Button.builder(Component.translatable("mclink.join"),
-                b -> client.setScreen(new JoinRemoteScreen(screen)))
-                .bounds(width / 2 - 102, row3Y, 204, 20)
-                .build();
-        event.addListener(joinBtn);
+        if (connect == null) {
+            Button joinBtn = Button.builder(Component.translatable("mclink.join"),
+                    b -> client.setScreen(new JoinRemoteScreen(screen)))
+                    .bounds(connectX, connectY, connectWidth, 20)
+                    .build();
+            event.addListener(joinBtn);
+        }
+    }
+
+    private static void setButtonY(ScreenEvent.Init.Post event, String translationKey, int y) {
+        Button button = findButton(event, translationKey);
+        if (button != null) button.setY(y);
     }
 
     private static Button findButton(ScreenEvent.Init.Post event, String translationKey) {

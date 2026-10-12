@@ -7,6 +7,7 @@ import net.minecraftforge.fml.common.Mod;
 @Mod("mclink")
 public final class McLinkMod {
     public McLinkMod() {
+        RouteStatusPublisher.initialize();
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> McLinkClient::new);
     }
 }

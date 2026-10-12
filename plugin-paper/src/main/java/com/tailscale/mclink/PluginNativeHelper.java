@@ -25,6 +25,9 @@ public final class PluginNativeHelper {
     public static Path extract(Path dataFolder, String version) throws IOException {
         String override = System.getenv("MCLINK_HELPER");
         if (override != null && !override.isBlank()) {
+            if (!"1".equals(System.getenv("MCLINK_DEV_HELPER"))) {
+                throw new IOException("MCLINK_HELPER requires the explicit development opt-in MCLINK_DEV_HELPER=1; protocol 2 is required");
+            }
             Path executable = Path.of(override).toAbsolutePath();
             if (!Files.isRegularFile(executable) || !Files.isExecutable(executable)) {
                 throw new IOException("MCLINK_HELPER is not an executable file: " + executable);

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "tailcat-for-minecraft",
-  "version": "0.2.1",
+  "version": "${version}",
   "name": "Tailcat for Minecraft (Fabric)",
   "description": "Peer-to-peer LAN multiplayer over Tailscale Tailcat",
   "authors": [
@@ -20,7 +20,7 @@
   "depends": {
     "fabricloader": ">=0.19.3",
     "minecraft": "26.2",
-    "java": ">=21",
+    "java": ">=25",
     "fabric-api": "*"
   }
 }
