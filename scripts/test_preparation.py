@@ -50,6 +50,17 @@ class BuildValidationTest(unittest.TestCase):
         self.assertEqual(25, target["build_java"])
         self.assertEqual(25, target["runtime_java"])
 
+    def test_forge_1_20_1_uses_reobfuscated_runtime_jar(self):
+        target = next(t for t in build_all.targets() if t["module"] == "mod-forge-1.20.1")
+        self.assertEqual(build_all.ROOT / target["module"] / "build/reobfJar/output.jar",
+                         build_all.runtime_jar_path(target, "0.3.1"))
+
+    def test_other_modules_use_named_build_artifact(self):
+        target = next(t for t in build_all.targets() if t["module"] == "mod-neoforge-1.20.1")
+        self.assertEqual(build_all.ROOT / target["module"] / "build/libs" /
+                         build_all.artifact_name(target, "0.3.1"),
+                         build_all.runtime_jar_path(target, "0.3.1"))
+
     def test_root_fabric_reads_shared_version(self):
         module = self.root / "mod-fabric-26.2"
         module.mkdir()

@@ -33,10 +33,17 @@ final class RouteStatusPublisher {
                 })
                 .add();
         CHANNEL.messageBuilder(HeartbeatPayload.class, 1, NetworkDirection.PLAY_TO_SERVER)
-                .encoder((payload, buffer) -> {})
-                .decoder(buffer -> new HeartbeatPayload())
+                .encoder((payload, buffer) -> buffer.writeByte(RouteStatusHeartbeat.MARKER))
+                .decoder(buffer -> {
+                    int length = buffer.readableBytes();
+                    int marker = length > 0 ? buffer.readUnsignedByte() : -1;
+                    if (!RouteStatusHeartbeat.isValid(length, marker))
+                        throw new IllegalArgumentException("Invalid Tailcat heartbeat payload");
+                    return new HeartbeatPayload();
+                })
                 .consumerMainThread((payload, context) -> {
-                    if (context.get().getSender() != null) RouteStatusLiveness.heartbeat(context.get().getSender().getUUID());
+                    if (context.get().getSender() != null)
+                        RouteStatusLiveness.heartbeat(context.get().getSender().getUUID());
                     context.get().setPacketHandled(true);
                 })
                 .add();
@@ -46,7 +53,10 @@ final class RouteStatusPublisher {
     static void initialize() { /* Trigger channel registration on client-only installations. */ }
 
     static void sendHeartbeat() {
-        if (RouteStatusHeartbeatClock.shouldSend()) CHANNEL.sendToServer(new HeartbeatPayload());
+        if (RouteStatusHeartbeatClock.shouldSend()
+                && net.minecraft.client.Minecraft.getInstance().getConnection() != null) {
+            CHANNEL.sendToServer(new HeartbeatPayload());
+        }
     }
 
     private static void receive(Object connection, byte[] bytes) {
@@ -78,6 +88,5 @@ final class RouteStatusPublisher {
     private record SnapshotPayload(byte[] bytes) {
         private SnapshotPayload { bytes = bytes.clone(); }
     }
-
     private record HeartbeatPayload() {}
 }

@@ -148,7 +148,7 @@ public final class McLinkClient {
         setButtonY(event, "selectServer.edit", row2Y);
         setButtonY(event, "selectServer.delete", row2Y);
         setButtonY(event, "selectServer.refresh", row2Y);
-        setButtonY(event, "gui.back", row2Y);
+        setButtonY(event, "gui.cancel", row2Y);
         if (connect != null) {
             connect.setPosition(connectX, connectY);
             connect.setWidth(connectWidth);

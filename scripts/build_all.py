@@ -103,6 +103,15 @@ def artifact_name(target, version):
     return f"tailcat-for-minecraft-{suffix}-{version}.jar"
 
 
+def runtime_jar_path(target, version):
+    module = ROOT / target["module"]
+    if target["module"] == "mod-forge-1.20.1":
+        # ForgeGradle's build/libs JAR is still in the development namespace.
+        # reobfJar/output.jar is the runtime artifact Minecraft can load.
+        return module / "build/reobfJar/output.jar"
+    return module / "build/libs" / artifact_name(target, version)
+
+
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -238,12 +247,14 @@ def main(argv=None):
     for target in selected:
         version = mod_version(target["module"])
         run_gradle(target, jdks, ["build"], run_dir / (target["module"] + ".log"))
-        jar = ROOT / target["module"] / "build/libs" / artifact_name(target, version)
+        jar = runtime_jar_path(target, version)
         if not jar.is_file():
             raise RuntimeError(f"Expected runtime JAR not found: {jar}")
         entry = inspect_jar(jar, target, version)
+        output_name = artifact_name(target, version)
+        entry["jar"] = output_name
         entry["build_id"] = build_id
-        artifacts.append((jar, entry))
+        artifacts.append((jar, entry, output_name))
         print(f"Verified {jar.name}: Java {entry['minimum_class_java']}", flush=True)
     if source_fingerprint() != source_hash:
         raise RuntimeError("Build sources changed during the run. Dist was not updated; rebuild a consistent source tree.")
@@ -251,14 +262,14 @@ def main(argv=None):
                 "full_matrix": len(selected) == len(matrix), "common_contract_tests": "passed",
                 "preparation_script_tests": "passed",
                 "elapsed_seconds": round(time.monotonic() - started, 2),
-                "artifacts": [entry for _, entry in artifacts]}
+                "artifacts": [entry for _, entry, _ in artifacts]}
     (run_dir / "release-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     dist = ROOT / "dist"
     dist.mkdir(exist_ok=True)
-    for jar, _ in artifacts:
-        temporary = dist / (jar.name + ".pending")
+    for jar, _, output_name in artifacts:
+        temporary = dist / (output_name + ".pending")
         shutil.copy2(jar, temporary)
-        temporary.replace(dist / jar.name)
+        temporary.replace(dist / output_name)
     # A partial build never replaces the full release manifest.
     name = "release-manifest.json" if manifest["full_matrix"] else f"release-manifest-{build_id}.json"
     shutil.copy2(run_dir / "release-manifest.json", dist / name)

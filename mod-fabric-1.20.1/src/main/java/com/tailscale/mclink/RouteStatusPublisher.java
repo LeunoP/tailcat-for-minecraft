@@ -15,20 +15,28 @@ import io.netty.buffer.Unpooled;
 
 final class RouteStatusPublisher {
     static final Identifier CHANNEL = new Identifier("mclink", "connection_status");
-    static final Identifier HEARTBEAT_CHANNEL = new Identifier("mclink", "connection_heartbeat");
-    private static boolean heartbeatReceiverRegistered;
+    private static final int HEARTBEAT_PACKET_TYPE = 1;
+    private static final int SNAPSHOT_PACKET_TYPE = 0;
     private RouteStatusPublisher() {}
 
     static synchronized void registerHeartbeatReceiver() {
-        if (heartbeatReceiverRegistered) return;
-        ServerPlayNetworking.registerGlobalReceiver(HEARTBEAT_CHANNEL,
-                (server, player, handler, buffer, responseSender) -> RouteStatusLiveness.heartbeat(player.getUuid()));
-        heartbeatReceiverRegistered = true;
+        ServerPlayNetworking.registerGlobalReceiver(CHANNEL,
+                (server, player, handler, buffer, responseSender) -> {
+                    if (!buffer.isReadable() || buffer.readUnsignedByte() != HEARTBEAT_PACKET_TYPE) return;
+                    int length = buffer.readableBytes();
+                    int marker = length > 0 ? buffer.readUnsignedByte() : -1;
+                    if (RouteStatusHeartbeat.isValid(length, marker))
+                        RouteStatusLiveness.heartbeat(player.getUuid());
+                });
     }
 
     static void sendHeartbeat(net.minecraft.client.MinecraftClient client) {
-        if (client.player != null && client.getNetworkHandler() != null && RouteStatusHeartbeatClock.shouldSend())
-            ClientPlayNetworking.send(HEARTBEAT_CHANNEL, new PacketByteBuf(Unpooled.buffer(0)));
+        if (client.player != null && client.getNetworkHandler() != null && RouteStatusHeartbeatClock.shouldSend()) {
+            PacketByteBuf payload = new PacketByteBuf(Unpooled.buffer(2));
+            payload.writeByte(HEARTBEAT_PACKET_TYPE);
+            payload.writeByte(RouteStatusHeartbeat.MARKER);
+            ClientPlayNetworking.send(CHANNEL, payload);
+        }
     }
 
     static void receive(Object connection, byte[] bytes) {
@@ -58,7 +66,7 @@ final class RouteStatusPublisher {
         for (byte[] snapshot : RouteStatus.encodePackets(routes)) {
             for (ServerPlayerEntity player : recipients) {
                 PacketByteBuf buffer = new PacketByteBuf(Unpooled.buffer(snapshot.length + 1));
-                buffer.writeByte(0);
+                buffer.writeByte(SNAPSHOT_PACKET_TYPE);
                 buffer.writeBytes(snapshot);
                 ServerPlayNetworking.send(player, CHANNEL, buffer);
             }

@@ -7,6 +7,24 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class FeatureSourceContracts(unittest.TestCase):
+    def test_forge_multiplayer_cancel_is_moved_above_tailcat_join_button(self):
+        for module in ("mod-forge-1.20.1",):
+            source = (ROOT / module / "src/main/java/com/tailscale/mclink/McLinkClient.java").read_text(encoding="utf-8")
+            self.assertIn('setButtonY(event, "gui.cancel", row2Y)', source, module)
+            self.assertNotIn('setButtonY(event, "gui.back", row2Y)', source, module)
+
+    def test_1201_forge_and_neoforge_share_heartbeat_wire_format(self):
+        for module in ("mod-fabric-1.20.1", "mod-forge-1.20.1", "mod-neoforge-1.20.1"):
+            source = (ROOT / module / "src/main/java/com/tailscale/mclink/RouteStatusPublisher.java").read_text(encoding="utf-8")
+            self.assertIn("RouteStatusHeartbeat.isValid", source, module)
+            self.assertIn('"mclink", "connection_status"', source, module)
+            self.assertIn("HEARTBEAT_PACKET_TYPE", source, module) if module == "mod-fabric-1.20.1" else self.assertIn("HeartbeatPayload.class, 1", source, module)
+        for module in ("mod-forge-1.20.1", "mod-neoforge-1.20.1"):
+            source = (ROOT / module / "src/main/java/com/tailscale/mclink/RouteStatusPublisher.java").read_text(encoding="utf-8")
+            self.assertIn("NetworkDirection.PLAY_TO_SERVER", source, module)
+            self.assertIn("CHANNEL.sendToServer(new HeartbeatPayload())", source, module)
+            self.assertNotIn("Unpooled.EMPTY_BUFFER.copy()", source, module)
+
     def test_fabric_12111_join_title_has_opaque_alpha(self):
         screen = (ROOT / "mod-fabric-1.21.11/src/main/java/com/tailscale/mclink/JoinRemoteScreen.java").read_text(encoding="utf-8")
         self.assertRegex(screen, r"drawCenteredTextWithShadow\(textRenderer, title,.*0xFFFFFFFF\)")
@@ -183,9 +201,8 @@ class FeatureSourceContracts(unittest.TestCase):
                 self.assertIn("RouteStatusCache.endSession(event.getConnection())", client, target["module"])
                 if target["minecraft"] == "1.20.1":
                     self.assertIn("receive(context.get().getNetworkManager(), payload.bytes())", publisher, target["module"])
-                    self.assertIn('new ResourceLocation("mclink", "connection_heartbeat")', publisher, target["module"])
-                    self.assertIn("NetworkEvent.ServerCustomPayloadEvent", publisher, target["module"])
-                    self.assertIn("ServerboundCustomPayloadPacket(HEARTBEAT_ID", publisher, target["module"])
+                    self.assertIn("HeartbeatPayload.class, 1, NetworkDirection.PLAY_TO_SERVER", publisher, target["module"])
+                    self.assertIn("CHANNEL.sendToServer(new HeartbeatPayload())", publisher, target["module"])
                 elif target["minecraft"] in ("26.2", "26.3"):
                     self.assertIn(".payloadChannel()", publisher, target["module"])
                     self.assertIn(".play().clientbound().addMain(TYPE, CODEC", publisher, target["module"])
@@ -206,6 +223,7 @@ class FeatureSourceContracts(unittest.TestCase):
                 self.assertIn("RouteStatusCache.endSession(event.getConnection())", client, target["module"])
                 if target["minecraft"] == "1.20.1":
                     self.assertIn("receive(context.get().getNetworkManager(), payload.bytes())", publisher, target["module"])
+                    self.assertIn("HeartbeatPayload.class, 1, NetworkDirection.PLAY_TO_SERVER", publisher, target["module"])
                     self.assertIn("RouteStatusCache.accept(connection, bytes)", publisher, target["module"])
                 else:
                     self.assertIn("receive(context.connection(), payload)", publisher, target["module"])

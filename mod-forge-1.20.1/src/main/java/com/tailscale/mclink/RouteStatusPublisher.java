@@ -1,31 +1,22 @@
 package com.tailscale.mclink;
 
-import io.netty.buffer.Unpooled;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.List;
 import java.util.function.ToIntFunction;
 
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.network.event.EventNetworkChannel;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 final class RouteStatusPublisher {
     private static final String PROTOCOL = "1";
-    private static final ResourceLocation HEARTBEAT_ID = new ResourceLocation("mclink", "connection_heartbeat");
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation("mclink", "connection_status"), () -> PROTOCOL,
-            NetworkRegistry.acceptMissingOr(PROTOCOL), NetworkRegistry.acceptMissingOr(PROTOCOL));
-    private static final EventNetworkChannel HEARTBEAT_CHANNEL = NetworkRegistry.newEventChannel(
-            HEARTBEAT_ID, () -> PROTOCOL,
             NetworkRegistry.acceptMissingOr(PROTOCOL), NetworkRegistry.acceptMissingOr(PROTOCOL));
 
     static {
@@ -41,12 +32,21 @@ final class RouteStatusPublisher {
                     context.get().setPacketHandled(true);
                 })
                 .add();
-        HEARTBEAT_CHANNEL.addListener((NetworkEvent.ServerCustomPayloadEvent event) -> {
-            if (event.getPayload() != null && event.getPayload().isReadable()) return;
-            NetworkEvent.Context context = event.getSource().get();
-            if (context.getSender() != null) RouteStatusLiveness.heartbeat(context.getSender().getUUID());
-            context.setPacketHandled(true);
-        });
+        CHANNEL.messageBuilder(HeartbeatPayload.class, 1, NetworkDirection.PLAY_TO_SERVER)
+                .encoder((payload, buffer) -> buffer.writeByte(RouteStatusHeartbeat.MARKER))
+                .decoder(buffer -> {
+                    int length = buffer.readableBytes();
+                    int marker = length > 0 ? buffer.readUnsignedByte() : -1;
+                    if (!RouteStatusHeartbeat.isValid(length, marker))
+                        throw new IllegalArgumentException("Invalid Tailcat heartbeat payload");
+                    return new HeartbeatPayload();
+                })
+                .consumerMainThread((payload, context) -> {
+                    if (context.get().getSender() != null)
+                        RouteStatusLiveness.heartbeat(context.get().getSender().getUUID());
+                    context.get().setPacketHandled(true);
+                })
+                .add();
     }
 
     private RouteStatusPublisher() {}
@@ -55,9 +55,7 @@ final class RouteStatusPublisher {
     static void sendHeartbeat() {
         if (RouteStatusHeartbeatClock.shouldSend()
                 && net.minecraft.client.Minecraft.getInstance().getConnection() != null) {
-            net.minecraft.client.Minecraft.getInstance().getConnection().getConnection().send(
-                    new ServerboundCustomPayloadPacket(HEARTBEAT_ID,
-                            new FriendlyByteBuf(Unpooled.EMPTY_BUFFER.copy())));
+            CHANNEL.sendToServer(new HeartbeatPayload());
         }
     }
 
@@ -90,5 +88,6 @@ final class RouteStatusPublisher {
     private record SnapshotPayload(byte[] bytes) {
         private SnapshotPayload { bytes = bytes.clone(); }
     }
+    private record HeartbeatPayload() {}
 
 }
