@@ -111,7 +111,7 @@ python scripts/build_all.py
 python scripts/build_all.py --module mod-fabric-26.3
 ```
 
-공통 계약 테스트와 각 모듈의 build 테스트를 생략하지 않습니다. JAR 메타데이터, 클래스 Java 버전과 내장 헬퍼 6종의 SHA-256을 검사하며, 선택한 대상이 모두 통과한 뒤 `dist/`를 갱신합니다. 빌드 로그는 `artifacts/build-<ID>/`, 전체 릴리스 목록은 `dist/release-manifest.json`에 남깁니다. 부분 빌드는 별도 목록을 만들고 전체 릴리스 목록을 덮어쓰지 않습니다. 빌드 성공과 인게임 호환 확인은 별도 항목입니다.
+공통 계약 테스트와 각 모듈의 build 테스트를 생략하지 않습니다. JAR 메타데이터, 클래스 Java 버전과 내장 헬퍼 6종의 SHA-256을 검사하며, 선택한 대상이 모두 통과한 뒤 `dist/`를 갱신합니다. 빌드 로그는 `artifacts/build-<ID>/`, 전체 릴리스 목록은 `dist/manifests/release-manifest.json`에 남깁니다. 부분 빌드는 별도 목록을 만들고 전체 릴리스 목록을 덮어쓰지 않습니다. 빌드 성공과 인게임 호환 확인은 별도 항목입니다.
 
 기존 Gradle 명령도 사용할 수 있습니다. 1.x Forge는 해당 모듈의 Gradle 8.8 래퍼를 사용하고, Forge 26.2는 루트 Gradle 9.5.1 래퍼를 사용합니다. 26.3 모듈은 각자의 Gradle 9.7.1 래퍼를 사용합니다.
 

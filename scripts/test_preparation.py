@@ -164,7 +164,9 @@ class IsolatedRunnerTest(unittest.TestCase):
             dist.mkdir()
             jar = "tailcat-for-minecraft-fabric-26.3-0.3.1.jar"
             (dist / jar).write_bytes(b"new mod")
-            (dist / "release-manifest.json").write_text(json.dumps({"artifacts": [
+            manifest_dir = dist / "manifests"
+            manifest_dir.mkdir()
+            (manifest_dir / "release-manifest.json").write_text(json.dumps({"artifacts": [
                 {"module": "mod-fabric-26.3", "jar_sha256": "test-hash"}]}), encoding="utf-8")
             with patch.object(test_instances, "ROOT", root), patch.object(build_all, "mod_version", return_value="0.3.1"), \
                     patch.object(build_all, "inspect_jar", return_value={"jar_sha256": "test-hash"}):

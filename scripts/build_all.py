@@ -266,14 +266,16 @@ def main(argv=None):
     (run_dir / "release-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     dist = ROOT / "dist"
     dist.mkdir(exist_ok=True)
+    manifest_dir = dist / "manifests"
+    manifest_dir.mkdir(exist_ok=True)
     for jar, _, output_name in artifacts:
         temporary = dist / (output_name + ".pending")
         shutil.copy2(jar, temporary)
         temporary.replace(dist / output_name)
     # A partial build never replaces the full release manifest.
     name = "release-manifest.json" if manifest["full_matrix"] else f"release-manifest-{build_id}.json"
-    shutil.copy2(run_dir / "release-manifest.json", dist / name)
-    print(f"Verified and copied {len(artifacts)} artifacts to {dist}. Manifest: {dist / name}", flush=True)
+    shutil.copy2(run_dir / "release-manifest.json", manifest_dir / name)
+    print(f"Verified and copied {len(artifacts)} artifacts to {dist}. Manifest: {manifest_dir / name}", flush=True)
     return 0
 
 
