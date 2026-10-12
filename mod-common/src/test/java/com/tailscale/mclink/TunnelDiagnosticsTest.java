@@ -50,4 +50,9 @@ class TunnelDiagnosticsTest {
         diagnostics.log("derp-301 now using 127.0.0.1:80 mtu=1280");
         assertEquals("unknown", diagnostics.transport()); assertEquals("", diagnostics.region());
     }
+    @Test void redactIpv6AddressesAndZonesWithoutMatchingArbitraryWords() {
+        assertEquals("[IP redacted]", TunnelDiagnostics.redact("fe80::1%eth-0"));
+        assertEquals("[IP redacted]", TunnelDiagnostics.redact("[2001:db8::1%Ethernet_2]:443"));
+        assertEquals("not-an-ip: ordinary-text", TunnelDiagnostics.redact("not-an-ip: ordinary-text"));
+    }
 }

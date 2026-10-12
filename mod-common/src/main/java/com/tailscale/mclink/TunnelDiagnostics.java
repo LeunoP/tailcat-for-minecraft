@@ -20,7 +20,9 @@ public final class TunnelDiagnostics {
     private static final Pattern SECRETS = Pattern.compile("(?i)(?:mcl1_[a-z0-9_=-]+|tc[a-z0-9_=-]{16,}|(?:privkey|nodekey|privatekey|publickey)[=:][^\\s,]+)");
     private static final String IPV4_OCTET = "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
     private static final Pattern IPV4_ADDRESS = Pattern.compile("(?<![0-9.])" + IPV4_OCTET + "(?:\\." + IPV4_OCTET + "){3}(?::[0-9]{1,5})?(?![0-9.])");
-    private static final Pattern IPV6_CANDIDATE = Pattern.compile("(?<![A-Za-z0-9_.])(?:\\[[0-9A-Fa-f:.%a-zA-Z_-]+\\](?::[0-9]{1,5})?|[0-9A-Fa-f:.%a-zA-Z_-]+)(?![A-Za-z0-9_.])");
+    private static final String IPV6_ZONE = "(?:%[A-Za-z0-9_.\\x2D]+)?";
+    private static final Pattern IPV6_CANDIDATE = Pattern.compile(
+            "(?<![A-Za-z0-9_.])(?:\\[[0-9A-Fa-f:.]+" + IPV6_ZONE + "\\](?::[0-9]{1,5})?|[0-9A-Fa-f:.]+" + IPV6_ZONE + ")(?![A-Za-z0-9_.])");
     private final ArrayDeque<String> logs = new ArrayDeque<>();
     private final Map<String, String> endpoints = new LinkedHashMap<>();
     private final Map<String, String> routes = new LinkedHashMap<>();
@@ -112,7 +114,7 @@ public final class TunnelDiagnostics {
                 int end = candidate.indexOf(']');
                 candidate = candidate.substring(1, end);
             }
-            String unscoped = candidate.replaceFirst("%[A-Za-z0-9_.-]+$", "");
+            String unscoped = candidate.replaceFirst("%[A-Za-z0-9_.\\x2D]+$", "");
             long colons = unscoped.chars().filter(character -> character == ':').count();
             boolean ipv6Shape = unscoped.contains("::") || colons >= 7;
             if (ipv6Shape && isNumericAddress(unscoped)) matcher.appendReplacement(result, "[IP redacted]");
