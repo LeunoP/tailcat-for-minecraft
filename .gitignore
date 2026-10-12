@@ -33,6 +33,7 @@ bin/
 **/bin/
 
 # Machine-specific paths and local implementation notes
+/antislop/
 /docs/FEATURE_IMPLEMENTATION.md
 /docs/PREPARATION_IMPLEMENTATION.md
 /scripts/test_instances.py
