@@ -14,18 +14,21 @@ public final class RouteStatus {
     public static final int DIRECT = 1;
     public static final int RELAY = 2;
     public static final int UNKNOWN = 3;
+    public static final int DISCONNECTED = 4;
     public static final int MAX_PAYLOAD_BYTES = 1156;
-    public static final int MAX_PACKET_PLAYERS = (MAX_PAYLOAD_BYTES - 17) / 18;
+    public static final int MAX_PACKET_PLAYERS = (MAX_PAYLOAD_BYTES - 17) / 20;
     private static final int LEGACY_MAX_PLAYERS = 64;
     private static final java.util.concurrent.atomic.AtomicLong SNAPSHOT_IDS = new java.util.concurrent.atomic.AtomicLong();
     private static final int MAGIC = 0x5443;
-    private static final int PROTOCOL_VERSION = 2;
+    private static final int PROTOCOL_VERSION = 4;
     private static final String NAME_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_";
 
-    public record PlayerRoute(String playerName, int status, int pingMillis) {
-        public PlayerRoute(String playerName, int status) { this(playerName, status, -1); }
+    public record PlayerRoute(String playerName, int status, int pingMillis, boolean host, boolean disconnected) {
+        public PlayerRoute(String playerName, int status, int pingMillis, boolean host) { this(playerName, status, pingMillis, host, false); }
+        public PlayerRoute(String playerName, int status, int pingMillis) { this(playerName, status, pingMillis, false, false); }
+        public PlayerRoute(String playerName, int status) { this(playerName, status, -1, false, false); }
     }
-    public record Packet(long snapshotId, int index, boolean last, List<PlayerRoute> players) {}
+    public record Packet(int version, long snapshotId, int index, boolean last, List<PlayerRoute> players) {}
 
     private RouteStatus() {}
 
@@ -43,16 +46,13 @@ public final class RouteStatus {
             case DIRECT -> "mclink.status_direct";
             case RELAY -> "mclink.status_relay";
             case UNKNOWN -> "mclink.status_unknown";
+            case DISCONNECTED -> "mclink.status_disconnected";
             default -> "mclink.status_not_tailcat";
         };
     }
 
     public static String commandLabel(int status, String language) {
-        return switch (status) {
-            case DIRECT -> "P2P";
-            case RELAY -> "DERP";
-            default -> ServerMessages.text(language, translationKey(status));
-        };
+        return ServerMessages.text(language, translationKey(status));
     }
 
     public static byte[] encode(List<PlayerRoute> players) {
@@ -90,6 +90,8 @@ public final class RouteStatus {
                 output.write(name);
                 output.writeByte(player.status());
                 output.writeInt(player.pingMillis());
+                output.writeBoolean(player.host());
+                output.writeBoolean(player.disconnected());
             }
             output.flush();
             return bytes.toByteArray();
@@ -111,7 +113,7 @@ public final class RouteStatus {
         if (input.readUnsignedShort() != MAGIC)
             throw new IOException("Unsupported route status payload");
         int version = input.readUnsignedByte();
-        if (version != 1 && version != PROTOCOL_VERSION)
+        if (version < 1 || version > PROTOCOL_VERSION)
             throw new IOException("Unsupported route status payload version");
         long snapshotId = version == 1 ? 0 : input.readLong();
         int index = version == 1 ? 0 : input.readInt();
@@ -126,13 +128,16 @@ public final class RouteStatus {
         for (int i = 0; i < count; i++) {
             int nameLength = input.readUnsignedByte();
             int encodedNameLength = version == 1 ? nameLength : (nameLength * 6 + 7) / 8;
-            if (nameLength < 1 || nameLength > 16 || encodedNameLength > input.available() - (version == 1 ? 1 : 5))
+            int remainingFields = version == 1 ? 1 : version == 2 ? 5 : version == 3 ? 6 : 7;
+            if (nameLength < 1 || nameLength > 16 || encodedNameLength > input.available() - remainingFields)
                 throw new IOException("Invalid route status player name");
             byte[] nameBytes = input.readNBytes(encodedNameLength);
             String name = version == 1 ? new String(nameBytes, StandardCharsets.US_ASCII) : unpackName(nameBytes, nameLength);
             int status = input.readUnsignedByte();
             int ping = version == 1 ? -1 : input.readInt();
-            PlayerRoute player = new PlayerRoute(name, status, ping);
+            boolean host = version >= 3 && input.readBoolean();
+            boolean disconnected = version >= 4 && input.readBoolean();
+            PlayerRoute player = new PlayerRoute(name, status, ping, host, disconnected);
             try {
                 validate(player);
             } catch (IllegalArgumentException invalid) {
@@ -141,7 +146,7 @@ public final class RouteStatus {
             players.add(player);
         }
         if (input.available() != 0) throw new IOException("Trailing route status data");
-        return new Packet(snapshotId, index, finalByte == 1, List.copyOf(players));
+        return new Packet(version, snapshotId, index, finalByte == 1, List.copyOf(players));
     }
 
     // Six bits cover Minecraft's 63 name characters, keeping v2 within the v1 packet-size limit.
@@ -179,7 +184,7 @@ public final class RouteStatus {
         if (player == null || player.playerName() == null || player.playerName().isEmpty()
                 || player.playerName().length() > 16 || !player.playerName().matches("[A-Za-z0-9_]+"))
             throw new IllegalArgumentException("Invalid route status player name");
-        if (player.status() < NOT_TAILCAT || player.status() > UNKNOWN)
+        if (player.status() < NOT_TAILCAT || player.status() > DISCONNECTED)
             throw new IllegalArgumentException("Invalid route status code");
         if (player.pingMillis() < -1)
             throw new IllegalArgumentException("Invalid route status ping");

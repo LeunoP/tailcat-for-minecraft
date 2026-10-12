@@ -18,6 +18,9 @@ final class RouteStatusPublisher {
     private static final int MAX_PAYLOAD_SIZE = RouteStatus.MAX_PAYLOAD_BYTES;
     static final CustomPacketPayload.Type<SnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
             Identifier.fromNamespaceAndPath("mclink", "connection_status"));
+    static final CustomPacketPayload.Type<HeartbeatPayload> HEARTBEAT_TYPE = new CustomPacketPayload.Type<>(
+            Identifier.fromNamespaceAndPath("mclink", "connection_heartbeat"));
+    static final StreamCodec<RegistryFriendlyByteBuf, HeartbeatPayload> HEARTBEAT_CODEC = StreamCodec.unit(new HeartbeatPayload());
     static final StreamCodec<RegistryFriendlyByteBuf, SnapshotPayload> CODEC = StreamCodec.of(
             (buffer, payload) -> {
                 buffer.writeByte(0);
@@ -33,13 +36,27 @@ final class RouteStatusPublisher {
                 return new SnapshotPayload(bytes);
             });
     private static boolean registered;
+    private static boolean heartbeatReceiverRegistered;
 
     private RouteStatusPublisher() {}
 
     static synchronized void registerPayload() {
         if (registered) return;
         PayloadTypeRegistry.clientboundPlay().register(TYPE, CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HEARTBEAT_TYPE, HEARTBEAT_CODEC);
         registered = true;
+    }
+
+    static synchronized void registerHeartbeatReceiver() {
+        if (heartbeatReceiverRegistered) return;
+        ServerPlayNetworking.registerGlobalReceiver(HEARTBEAT_TYPE,
+                (payload, context) -> RouteStatusLiveness.heartbeat(context.player().getUUID()));
+        heartbeatReceiverRegistered = true;
+    }
+
+    static void sendHeartbeat(net.minecraft.client.Minecraft client) {
+        if (client.player != null && client.getConnection() != null && RouteStatusHeartbeatClock.shouldSend())
+            net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new HeartbeatPayload());
     }
 
     static void receive(Object connection, SnapshotPayload payload) {
@@ -51,15 +68,18 @@ final class RouteStatusPublisher {
     }
 
     static synchronized void publish(MinecraftServer server, ToIntFunction<SocketAddress> routeForAddress) {
+        RouteStatusLiveness.retainPlayers(server.getPlayerList().getPlayers().stream()
+                .map(player -> player.getUUID()).toList());
         List<ServerPlayer> players = server.getPlayerList().getPlayers();
         List<RouteStatus.PlayerRoute> routes = players.stream()
-                .map(player -> new RouteStatus.PlayerRoute(player.getName().getString(),
-                        routeForAddress.applyAsInt(player.connection.getRemoteAddress()), Math.max(-1, player.connection.latency())))
+                .map(player -> RouteStatusLiveness.playerRoute(player.getUUID(), player.getName().getString(),
+                        routeForAddress.applyAsInt(player.connection.getRemoteAddress()), Math.max(-1, player.connection.latency()), RouteStatusHostRegistry.isHost(server, player.getName().getString())))
                 .toList();
         send(players, routes);
     }
 
     static synchronized void clear(MinecraftServer server) {
+        RouteStatusLiveness.clear();
         send(server.getPlayerList().getPlayers(), List.of());
     }
 
@@ -74,4 +94,9 @@ final class RouteStatusPublisher {
         SnapshotPayload { bytes = bytes.clone(); }
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
+
+    record HeartbeatPayload() implements CustomPacketPayload {
+        @Override public Type<? extends CustomPacketPayload> type() { return HEARTBEAT_TYPE; }
+    }
+
 }

@@ -21,6 +21,7 @@ import (
 // ConnBlob wire format.
 var wireFieldNames = map[string]string{
 	"p": "ServerPublic",
+	"k": "ServerDiscoPublic",
 	"r": "Region",
 	"i": "RegionID",
 	"c": "RegionCode",

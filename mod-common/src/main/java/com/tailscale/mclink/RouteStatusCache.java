@@ -1,12 +1,16 @@
 package com.tailscale.mclink;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class RouteStatusCache {
-    private static final long STALE_AFTER_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
-    private record Snapshot(List<RouteStatus.PlayerRoute> players, boolean received, long receivedAtNanos) {}
-    private static volatile Snapshot snapshot = new Snapshot(List.of(), false, 0);
+    private static final long STALE_AFTER_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+    private static final long SNAPSHOT_ASSEMBLY_TIMEOUT_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
+    private record Snapshot(Map<String, RouteStatus.PlayerRoute> players, boolean received, long receivedAtNanos,
+            boolean heartbeatSupported) {}
+    private static volatile Snapshot snapshot = new Snapshot(Map.of(), false, 0, false);
     private static java.util.ArrayList<RouteStatus.PlayerRoute> pending;
     private static long pendingId, pendingSinceNanos;
     private static int nextPacketIndex;
@@ -51,24 +55,32 @@ public final class RouteStatusCache {
             nextPacketIndex = 0;
         }
         if (pending == null || packet.snapshotId() != pendingId || packet.index() != nextPacketIndex
-                || nowNanos - pendingSinceNanos >= STALE_AFTER_NANOS) {
+                || nowNanos - pendingSinceNanos >= SNAPSHOT_ASSEMBLY_TIMEOUT_NANOS) {
             pending = null;
             throw new IOException("Out-of-order or expired route status snapshot");
         }
         pending.addAll(packet.players());
         nextPacketIndex++;
         if (packet.last()) {
-            snapshot = new Snapshot(List.copyOf(pending), true, nowNanos);
+            Map<String, RouteStatus.PlayerRoute> players = new LinkedHashMap<>();
+            for (RouteStatus.PlayerRoute player : pending) players.put(player.playerName(), player);
+            snapshot = new Snapshot(java.util.Collections.unmodifiableMap(new LinkedHashMap<>(players)), true,
+                    nowNanos, packet.version() >= 4);
             pending = null;
         }
     }
 
     public static List<RouteStatus.PlayerRoute> players() {
-        return snapshot.players();
+        Snapshot current = snapshot;
+        return List.copyOf(current.players().values());
     }
 
     public static boolean hasSnapshot() {
         return snapshot.received();
+    }
+
+    public static boolean supportsHeartbeat() {
+        return snapshot.heartbeatSupported();
     }
 
     public static boolean isStale() {
@@ -86,7 +98,7 @@ public final class RouteStatusCache {
     }
 
     private static void resetSnapshot() {
-        snapshot = new Snapshot(List.of(), false, 0);
+        snapshot = new Snapshot(Map.of(), false, 0, false);
         pending = null;
         pendingId = 0;
         pendingSinceNanos = 0;

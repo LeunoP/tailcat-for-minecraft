@@ -7,6 +7,8 @@ public final class TailcatServerInitializer implements DedicatedServerModInitial
     @Override
     public void onInitializeServer() {
         RouteStatusPublisher.registerPayload();
+        RouteStatusPublisher.registerHeartbeatReceiver();
+        RouteStatusPublisher.registerPayload();
         net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback.EVENT.register(TailcatCommands::register);
         ServerLifecycleEvents.SERVER_STARTED.register(ServerShareHandler::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPED.register(ServerShareHandler::onServerStopped);

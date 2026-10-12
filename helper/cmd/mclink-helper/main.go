@@ -133,7 +133,11 @@ func runHost(ctx context.Context, out *eventWriter, args []string) (string, erro
 	defer server.Close()
 	server.SetRelayOnly(*relayOnly)
 
-	publicCI := tailcat.ConnInfo{ServerPublic: tailcat.NodePublic{NodePublic: priv.Public()}, RegionID: region.RegionID}
+	publicCI := tailcat.ConnInfo{
+		ServerPublic:      tailcat.NodePublic{NodePublic: priv.Public()},
+		ServerDiscoPublic: tailcat.DiscoPublicForNode(priv),
+		RegionID:          region.RegionID,
+	}
 	encoded, err := invite.New(string(publicCI.ConnBlob())).Encode()
 	if err != nil {
 		return "helper_failed", err

@@ -15,8 +15,16 @@ import (
 )
 
 func TestEncodeCallMeMaybeEncryptsEndpointCandidates(t *testing.T) {
-	sender := nodePrivateAsDiscoPrivate(key.NewNode())
-	receiver := key.NewDisco()
+	senderNode := key.NewNode()
+	receiverNode := key.NewNode()
+	sender := discoPrivateForNode(senderNode)
+	receiver := discoPrivateForNode(receiverNode)
+	if sender.Public().Raw32() == senderNode.Public().Raw32() {
+		t.Fatal("sender disco key is not independent from its node key")
+	}
+	if receiver.Public().Raw32() == receiverNode.Public().Raw32() {
+		t.Fatal("receiver disco key is not independent from its node key")
+	}
 	endpoints := []netip.AddrPort{
 		netip.MustParseAddrPort("192.168.1.23:41327"),
 		netip.MustParseAddrPort("[2001:db8::23]:41327"),
@@ -54,5 +62,36 @@ func TestEncodeCallMeMaybeEncryptsEndpointCandidates(t *testing.T) {
 	}
 	if !slices.Equal(endpoints, callMeMaybe.MyNumber) {
 		t.Fatalf("endpoint candidates mismatch: got %v, want %v", callMeMaybe.MyNumber, endpoints)
+	}
+}
+
+func TestUpdateEndpointsDeduplicatesAndHonorsRelayOnly(t *testing.T) {
+	b := newLocoBackend(key.NewNode())
+	a := netip.MustParseAddrPort("192.0.2.1:1234")
+	z := netip.MustParseAddrPort("192.0.2.2:1234")
+	if !b.updateEndpoints([]netip.AddrPort{z, a, a}) {
+		t.Fatal("changed endpoints should be advertised")
+	}
+	b.mu.Lock()
+	got := slices.Clone(b.eps)
+	b.mu.Unlock()
+	if want := []netip.AddrPort{a, z}; !slices.Equal(got, want) {
+		t.Fatalf("stored endpoints = %v; want sorted unique %v", got, want)
+	}
+	if b.updateEndpoints([]netip.AddrPort{a, z, a}) {
+		t.Fatal("same endpoint set should not trigger another advertisement")
+	}
+	if b.updateEndpoints(nil) {
+		t.Fatal("empty endpoint set should clear state without advertising")
+	}
+	b.mu.Lock()
+	cleared := len(b.eps) == 0
+	b.mu.Unlock()
+	if !cleared {
+		t.Fatal("empty endpoint update did not clear the previous candidates")
+	}
+	b.relayOnly.Store(true)
+	if b.updateEndpoints([]netip.AddrPort{a}) {
+		t.Fatal("relay-only mode should suppress endpoint advertisements")
 	}
 }

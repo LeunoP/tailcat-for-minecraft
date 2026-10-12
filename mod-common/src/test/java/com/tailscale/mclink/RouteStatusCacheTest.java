@@ -12,10 +12,10 @@ class RouteStatusCacheTest {
 
     @AfterEach void reset() { RouteStatusCache.clear(); }
 
-    @Test void disconnectsAtExactlyOneMinuteWithoutLosingRoster() throws Exception {
+    @Test void disconnectsAtExactlyFiveSecondsWithoutLosingRoster() throws Exception {
         RouteStatusCache.accept(payload, 100);
-        assertFalse(RouteStatusCache.isStale(100 + TimeUnit.SECONDS.toNanos(60) - 1));
-        assertTrue(RouteStatusCache.isStale(100 + TimeUnit.SECONDS.toNanos(60)));
+        assertFalse(RouteStatusCache.isStale(100 + TimeUnit.SECONDS.toNanos(5) - 1));
+        assertTrue(RouteStatusCache.isStale(100 + TimeUnit.SECONDS.toNanos(5)));
         assertEquals(1, RouteStatusCache.players().size());
     }
 

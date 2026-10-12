@@ -6,7 +6,7 @@ repositories {
     maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
 }
 
-version = '0.3.0'
+version = '0.3.1'
 group = 'com.tailscale.tailcat.minecraft'
 
 base {

@@ -5,14 +5,18 @@ package tailcat
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/google/go-cmp/cmp"
 	"go4.org/mem"
 	"tailscale.com/tailcfg"
@@ -29,6 +33,101 @@ func mkLogger(t testing.TB, name string) logger.Logf {
 			return
 		}
 		t.Logf("        ["+name+"] "+format, args...)
+	}
+}
+
+func TestDiscoKeyDerivation(t *testing.T) {
+	var raw [32]byte
+	for i := range raw {
+		raw[i] = byte(i + 1)
+	}
+	priv := key.NodePrivateFromRaw32(mem.B(raw[:]))
+
+	want, err := hex.DecodeString("48f03a6b1667cd36c7c98c69f51b8b249d34e81ef52387e2943ff4b3c054396e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPrivate := key.DiscoPrivateFromRaw32(mem.B(want))
+	gotPublic := discoPrivateForNode(priv).Public()
+	if gotPublic.Raw32() != wantPrivate.Public().Raw32() {
+		t.Fatalf("derived disco public key = %v; want %v", gotPublic, wantPrivate.Public())
+	}
+	pub := DiscoPublicForNode(priv)
+	if pub.Raw32() == priv.Public().Raw32() {
+		t.Fatal("derived disco public key reuses the node public key")
+	}
+	if again := DiscoPublicForNode(priv); !pub.Equal(again) {
+		t.Fatal("disco key derivation is not deterministic")
+	}
+}
+
+func TestDiscoPublicBinaryLength(t *testing.T) {
+	for _, n := range []int{key.DiscoPublicRawLen - 1, key.DiscoPublicRawLen + 1} {
+		var got DiscoPublic
+		if err := got.UnmarshalBinary(make([]byte, n)); err == nil {
+			t.Errorf("UnmarshalBinary accepted %d-byte disco key", n)
+		}
+	}
+	var got DiscoPublic
+	if err := got.UnmarshalBinary(make([]byte, key.DiscoPublicRawLen)); err != nil {
+		t.Fatalf("UnmarshalBinary rejected a 32-byte disco key: %v", err)
+	}
+}
+
+func TestConnBlobSeparateDiscoKeyRoundTrip(t *testing.T) {
+	server := key.NewNode()
+	want := DiscoPublicForNode(server)
+	ci := ConnInfo{
+		ServerPublic:      NodePublic{server.Public()},
+		ServerDiscoPublic: want,
+		RegionID:          10,
+	}
+	got, err := ParseConnBlob(ci.ConnBlob())
+	if err != nil {
+		t.Fatalf("ParseConnBlob: %v", err)
+	}
+	if !got.ServerDiscoPublic.Equal(want) {
+		t.Fatalf("round-trip disco public key = %v; want %v", got.ServerDiscoPublic, want)
+	}
+}
+
+func TestNewClientRejectsMissingZeroOrNodeDiscoKey(t *testing.T) {
+	server := key.NewNode()
+	type wireForTest struct {
+		ServerPublic      NodePublic `cbor:"p"`
+		ServerDiscoPublic []byte     `cbor:"k,omitempty"`
+		RegionID          int        `cbor:"i,omitempty"`
+	}
+	makeBlob := func(disco []byte) ConnBlob {
+		raw, err := cbor.Marshal(wireForTest{
+			ServerPublic:      NodePublic{server.Public()},
+			ServerDiscoPublic: disco,
+			RegionID:          10,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ConnBlob("tc" + base64.RawURLEncoding.EncodeToString(raw))
+	}
+	equalNodeKey := server.Public().AppendTo(nil)
+	tests := []struct {
+		name string
+		blob ConnBlob
+	}{
+		{name: "missing", blob: makeBlob(nil)},
+		{name: "zero", blob: makeBlob(make([]byte, key.DiscoPublicRawLen))},
+		{name: "same_as_node_key", blob: makeBlob(equalNodeKey)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := NewClient(nil, tt.blob, key.NewNode()); err == nil || !strings.Contains(err.Error(), "disco key") {
+				t.Fatalf("NewClient error = %v; want explicit disco key rejection", err)
+			}
+		})
+	}
+	badLength := makeBlob(make([]byte, key.DiscoPublicRawLen-1))
+	if _, err := NewClient(nil, badLength, key.NewNode()); err == nil || !strings.Contains(err.Error(), "disco public key length") {
+		t.Fatalf("NewClient with malformed disco key error = %v; want binary length rejection", err)
 	}
 }
 
@@ -113,6 +212,119 @@ func TestTailcat(t *testing.T) {
 		t.Fatalf("DialTCP = %v, %v", conn, err)
 	}
 
+}
+
+func TestConcurrentMeowsKeepAllPeers(t *testing.T) {
+	testConcurrentMeowsKeepAllPeers(t, true)
+}
+
+func TestColdStartConcurrentMeowsKeepAllPeers(t *testing.T) {
+	testConcurrentMeowsKeepAllPeers(t, false)
+}
+
+func testConcurrentMeowsKeepAllPeers(t *testing.T, waitForDERP bool) {
+	t.Helper()
+	dm := integration.RunDERPAndSTUN(t, mkLogger(t, "derpstun"), "127.0.0.1")
+	reg := dm.Regions[1]
+	if reg == nil {
+		t.Fatal("no region 1 in derpmap")
+	}
+	s, err := NewServer(key.NewNode(), mkLogger(t, "server"), reg)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+	privs := []key.NodePrivate{key.NewNode(), key.NewNode(), key.NewNode()}
+	for _, priv := range privs {
+		s.AddAllowedClient(priv.Public())
+	}
+	s.OnTCP = func(port uint16) func(net.Conn) {
+		if port != 80 {
+			return nil
+		}
+		return func(c net.Conn) {
+			io.WriteString(c, "shared invite works\n")
+			c.Close()
+		}
+	}
+	blob := s.ConnBlobForTest()
+	clients := make([]*Client, 0, len(privs))
+	for i, priv := range privs {
+		c, err := NewClient(mkLogger(t, fmt.Sprintf("client%d", i+1)), blob, priv)
+		if err != nil {
+			t.Fatalf("NewClient %d: %v", i+1, err)
+		}
+		t.Cleanup(func() { c.Close() })
+		clients = append(clients, c)
+	}
+	if err := s.Start(); err != nil {
+		t.Fatalf("server Start: %v", err)
+	}
+	if waitForDERP {
+		for _, c := range clients {
+			WaitForDERPForTest(t, s, c)
+		}
+	}
+
+	type pingResult struct {
+		pub key.NodePublic
+		err error
+	}
+	results := make(chan pingResult, len(clients))
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	for _, c := range clients {
+		go func(c *Client) {
+			_, err := c.Ping(ctx)
+			results <- pingResult{pub: c.PublicKey(), err: err}
+		}(c)
+	}
+	for range clients {
+		res := <-results
+		if res.err != nil {
+			t.Fatalf("concurrent Ping from %v: %v", res.pub.ShortString(), res.err)
+		}
+	}
+	tcpResults := make(chan pingResult, len(clients))
+	for _, c := range clients {
+		go func(c *Client) {
+			conn, err := c.DialTCPPort(ctx, 80)
+			if err == nil {
+				var got []byte
+				got, err = io.ReadAll(conn)
+				conn.Close()
+				if err == nil && string(got) != "shared invite works\n" {
+					err = fmt.Errorf("TCP response = %q", got)
+				}
+			}
+			tcpResults <- pingResult{pub: c.PublicKey(), err: err}
+		}(c)
+	}
+	for range clients {
+		res := <-tcpResults
+		if res.err != nil {
+			t.Fatalf("TCP connection from %v: %v", res.pub.ShortString(), res.err)
+		}
+	}
+
+	s.lb.mu.Lock()
+	peerCount := len(s.lb.nm.Peers)
+	clientCount := len(s.lb.clients)
+	for _, c := range clients {
+		if _, ok := s.lb.clients[c.PublicKey()]; !ok {
+			t.Errorf("server lost concurrent client %v", c.PublicKey().ShortString())
+		}
+	}
+	s.lb.mu.Unlock()
+	if peerCount != len(clients) {
+		t.Fatalf("server network map has %d peers after concurrent joins; want %d", peerCount, len(clients))
+	}
+	if clientCount != len(clients) {
+		t.Fatalf("server client table has %d peers after concurrent joins; want %d", clientCount, len(clients))
+	}
+	if got := len(s.Status().Peer); got != len(clients) {
+		t.Fatalf("host.Status reports %d peers after concurrent joins; want %d", got, len(clients))
+	}
 }
 
 // TestHalfClose tests that a client's write shutdown (CloseWrite)

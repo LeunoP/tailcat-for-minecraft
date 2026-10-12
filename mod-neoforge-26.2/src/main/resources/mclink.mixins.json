@@ -3,7 +3,7 @@
   "refmap": "mclink.refmap.json",
   "minVersion": "0.8",
   "package": "com.tailscale.mclink.mixin",
-  "compatibilityLevel": "JAVA_25",
+  "compatibilityLevel": "JAVA_21",
   "client": ["IntegratedServerMaxPlayersMixin"],
   "injectors": { "defaultRequire": 1 }
 }

@@ -21,6 +21,7 @@ helper/bin/
 .stfolder/
 
 # Local diagnostics and temporary files
+artifacts/
 *.log
 *.tmp
 hs_err_pid*

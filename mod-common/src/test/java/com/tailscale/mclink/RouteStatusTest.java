@@ -24,10 +24,12 @@ class RouteStatusTest {
         assertEquals("mclink.status_not_tailcat", RouteStatus.translationKey(RouteStatus.NOT_TAILCAT));
     }
 
-    @Test void commandLabelsUseTransportNamesAndDoNotGuessUnknownRoutes() {
+    @Test void commandLabelsMatchTheConnectionStatusDisplay() {
         for (String language : List.of("en_us", "ko_kr", "ja_jp")) {
-            assertEquals("P2P", RouteStatus.commandLabel(RouteStatus.encode(true, "direct"), language));
-            assertEquals("DERP", RouteStatus.commandLabel(RouteStatus.encode(true, "relay"), language));
+            assertEquals(ServerMessages.text(language, "mclink.status_direct"),
+                    RouteStatus.commandLabel(RouteStatus.encode(true, "direct"), language));
+            assertEquals(ServerMessages.text(language, "mclink.status_relay"),
+                    RouteStatus.commandLabel(RouteStatus.encode(true, "relay"), language));
             assertEquals(ServerMessages.text(language, "mclink.status_unknown"),
                     RouteStatus.commandLabel(RouteStatus.encode(true, null), language));
             assertEquals(ServerMessages.text(language, "mclink.status_not_tailcat"),

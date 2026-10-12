@@ -18,6 +18,9 @@ final class RouteStatusPublisher {
     private static final int MAX_PAYLOAD_SIZE = RouteStatus.MAX_PAYLOAD_BYTES;
     static final CustomPayload.Id<SnapshotPayload> ID = new CustomPayload.Id<>(
             Identifier.of("mclink", "connection_status"));
+    static final CustomPayload.Id<HeartbeatPayload> HEARTBEAT_ID = new CustomPayload.Id<>(
+            Identifier.of("mclink", "connection_heartbeat"));
+    static final PacketCodec<RegistryByteBuf, HeartbeatPayload> HEARTBEAT_CODEC = PacketCodec.unit(new HeartbeatPayload());
     static final PacketCodec<RegistryByteBuf, SnapshotPayload> CODEC = PacketCodec.of(
             (payload, buffer) -> {
                 buffer.writeByte(0);
@@ -33,13 +36,27 @@ final class RouteStatusPublisher {
                 return new SnapshotPayload(bytes);
             });
     private static boolean registered;
+    private static boolean heartbeatReceiverRegistered;
 
     private RouteStatusPublisher() {}
 
     static synchronized void registerPayload() {
         if (registered) return;
         PayloadTypeRegistry.playS2C().register(ID, CODEC);
+        PayloadTypeRegistry.playC2S().register(HEARTBEAT_ID, HEARTBEAT_CODEC);
         registered = true;
+    }
+
+    static synchronized void registerHeartbeatReceiver() {
+        if (heartbeatReceiverRegistered) return;
+        ServerPlayNetworking.registerGlobalReceiver(HEARTBEAT_ID,
+                (payload, context) -> RouteStatusLiveness.heartbeat(context.player().getUuid()));
+        heartbeatReceiverRegistered = true;
+    }
+
+    static void sendHeartbeat(net.minecraft.client.MinecraftClient client) {
+        if (client.player != null && client.getNetworkHandler() != null && RouteStatusHeartbeatClock.shouldSend())
+            net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new HeartbeatPayload());
     }
 
     static void receive(Object connection, SnapshotPayload payload) {
@@ -51,14 +68,17 @@ final class RouteStatusPublisher {
     }
 
     static synchronized void publish(MinecraftServer server, ToIntFunction<SocketAddress> routeForAddress) {
+        RouteStatusLiveness.retainPlayers(server.getPlayerManager().getPlayerList().stream()
+                .map(player -> player.getUuid()).toList());
         List<RouteStatus.PlayerRoute> routes = server.getPlayerManager().getPlayerList().stream()
-                .map(player -> new RouteStatus.PlayerRoute(player.getName().getString(),
-                        routeForAddress.applyAsInt(player.networkHandler.getConnectionAddress()), Math.max(-1, player.networkHandler.getLatency())))
+                .map(player -> RouteStatusLiveness.playerRoute(player.getUuid(), player.getName().getString(),
+                        routeForAddress.applyAsInt(player.networkHandler.getConnectionAddress()), Math.max(-1, player.networkHandler.getLatency()), RouteStatusHostRegistry.isHost(server, player.getName().getString())))
                 .toList();
         send(server.getPlayerManager().getPlayerList(), routes);
     }
 
     static synchronized void clear(MinecraftServer server) {
+        RouteStatusLiveness.clear();
         send(server.getPlayerManager().getPlayerList(), List.of());
     }
 
@@ -72,5 +92,9 @@ final class RouteStatusPublisher {
     record SnapshotPayload(byte[] bytes) implements CustomPayload {
         SnapshotPayload { bytes = bytes.clone(); }
         @Override public Id<? extends CustomPayload> getId() { return ID; }
+    }
+
+    record HeartbeatPayload() implements CustomPayload {
+        @Override public Id<? extends CustomPayload> getId() { return HEARTBEAT_ID; }
     }
 }

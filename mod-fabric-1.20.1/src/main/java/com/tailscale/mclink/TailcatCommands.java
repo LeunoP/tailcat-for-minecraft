@@ -67,20 +67,14 @@ public final class TailcatCommands {
             source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.status_title")).formatted(Formatting.GOLD), false);
             int count = 0;
             for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
-                if (isTailcatPlayer(player)) {
-                    source.sendFeedback(() -> formatPlayerLine(player), false);
-                    count++;
-                }
+                source.sendFeedback(() -> formatPlayerLine(player), false);
+                count++;
             }
             if (count == 0) {
                 source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.no_players")).formatted(Formatting.GRAY), false);
             }
         } else if (executingPlayer != null) {
-            if (isTailcatPlayer(executingPlayer)) {
-                source.sendFeedback(() -> formatPlayerLine(executingPlayer), false);
-            } else {
-                source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.not_connected")).formatted(Formatting.GRAY), false);
-            }
+            source.sendFeedback(() -> formatPlayerLine(executingPlayer), false);
         } else {
             source.sendFeedback(() -> Text.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.console_permission")).formatted(Formatting.GRAY), false);
         }
@@ -104,13 +98,25 @@ public final class TailcatCommands {
         int ping = player.pingMilliseconds;
 
         SocketAddress address = player.networkHandler == null ? null : player.networkHandler.getConnectionAddress();
-        String route = RouteStatus.commandLabel(ServerShareHandler.connectionStatus(address), ServerShareHandler.language());
+        int status = RouteStatusLiveness.effectiveStatus(player.getUuid(),
+                ServerShareHandler.connectionStatus(address), false);
+        String route = RouteStatus.commandLabel(status, ServerShareHandler.language());
 
         return Text.literal("[ ")
             .formatted(Formatting.GRAY)
             .append(Text.literal(player.getEntityName()).formatted(Formatting.GREEN))
             .append(Text.literal(" ] ").formatted(Formatting.GRAY))
-            .append(Text.literal(route + " ").formatted(Formatting.AQUA))
+            .append(Text.literal(route + " ").formatted(routeColor(status)))
             .append(Text.literal(ping + "ms").formatted(Formatting.WHITE));
+    }
+
+    private static Formatting routeColor(int status) {
+        return switch (status) {
+            case RouteStatus.NOT_TAILCAT -> Formatting.BLUE;
+            case RouteStatus.DIRECT -> Formatting.GREEN;
+            case RouteStatus.RELAY -> Formatting.GOLD;
+            case RouteStatus.DISCONNECTED -> Formatting.RED;
+            default -> Formatting.YELLOW;
+        };
     }
 }

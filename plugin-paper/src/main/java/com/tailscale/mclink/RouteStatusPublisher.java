@@ -8,6 +8,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 final class RouteStatusPublisher {
     static final String CHANNEL = "mclink:connection_status";
+    static final String HEARTBEAT_CHANNEL = "mclink:connection_heartbeat";
     private final JavaPlugin plugin;
 
     RouteStatusPublisher(JavaPlugin plugin) {
@@ -15,14 +16,16 @@ final class RouteStatusPublisher {
     }
 
     void publish(List<Player> recipients, ToIntFunction<SocketAddress> routeForAddress) {
+        RouteStatusLiveness.retainPlayers(recipients.stream().map(Player::getUniqueId).toList());
         List<RouteStatus.PlayerRoute> routes = recipients.stream()
-                .map(player -> new RouteStatus.PlayerRoute(player.getName(),
-                        routeForAddress.applyAsInt(player.getAddress()), Math.max(-1, player.getPing())))
+                .map(player -> RouteStatusLiveness.playerRoute(player.getUniqueId(), player.getName(),
+                        routeForAddress.applyAsInt(player.getAddress()), Math.max(-1, player.getPing()), false))
                 .toList();
         send(recipients, routes);
     }
 
     void clear() {
+        RouteStatusLiveness.clear();
         send(List.copyOf(plugin.getServer().getOnlinePlayers()), List.of());
     }
 

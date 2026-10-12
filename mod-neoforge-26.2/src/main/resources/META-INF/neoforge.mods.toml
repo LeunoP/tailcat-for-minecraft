@@ -7,7 +7,7 @@ config="mclink.mixins.json"
 
 [[mods]]
 modId="mclink"
-version="0.3.0"
+version="${version}"
 displayName="Tailcat for Minecraft (NeoForge)"
 authors="Tailscale, DeepMind"
 description='''Peer-to-peer LAN multiplayer over Tailscale Tailcat'''

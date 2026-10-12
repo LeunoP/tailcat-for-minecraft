@@ -29,7 +29,8 @@ public final class ConnectionStatusScreen extends Screen {
     }
 
     static boolean isAvailable(MinecraftClient client) {
-        return client.world != null && RouteStatusCache.hasSnapshot();
+        return client.world != null && RouteStatusCache.hasSnapshot() && !RouteStatusCache.isStale()
+                && !RouteStatusCache.players().isEmpty();
     }
 
     @Override
@@ -81,7 +82,7 @@ public final class ConnectionStatusScreen extends Screen {
                     ? Text.translatable("mclink.status_waiting").getString()
                     : routeLabel(ownRoute, false, ownRoute.playerName().equals(ownName) && McLinkClient.state().isHosting());
         int ownColor = stale ? 0xFFFF5555 : !hasSnapshot || ownRoute == null ? 0xFFAAAAAA
-                : routeColor(ownRoute.status(), false, McLinkClient.state().isHosting());
+                : routeColor(ownRoute.status(), false, McLinkClient.state().isHosting() || ownRoute.host());
         String ownPing = stale || ownRoute == null
                 ? Text.translatable("mclink.status_ping_unavailable").getString()
                 : pingLabel(ownRoute.pingMillis(), false);
@@ -114,7 +115,7 @@ public final class ConnectionStatusScreen extends Screen {
             String ping = pingLabel(player.pingMillis(), stale);
             drawText(graphics, playerName, LEFT, y, nameWidth, self ? 0xFFFFFFFF : 0xFFDDDDDD);
             drawText(graphics, route, routeX, y, actualRouteWidth,
-                    routeColor(player.status(), stale, self && McLinkClient.state().isHosting()));
+                    routeColor(player.status(), stale, player.host() || self && McLinkClient.state().isHosting()));
             drawText(graphics, ping, pingX, y, pingWidth,
                     stale || player.pingMillis() < 0 ? 0xFFAAAAAA : 0xFFDDDDDD);
         }
@@ -221,7 +222,7 @@ public final class ConnectionStatusScreen extends Screen {
                     ? Text.translatable("mclink.status_waiting").getString()
                     : routeLabel(ownRoute, false, McLinkClient.state().isHosting());
         int ownStatusColor = stale ? 0xFFFF5555 : !hasSnapshot || ownRoute == null ? 0xFFAAAAAA
-                : routeColor(ownRoute.status(), false, McLinkClient.state().isHosting());
+                : routeColor(ownRoute.status(), false, McLinkClient.state().isHosting() || ownRoute.host());
         String ownPing = stale || ownRoute == null
                 ? Text.translatable("mclink.status_ping_unavailable").getString()
                 : pingLabel(ownRoute.pingMillis(), false);
@@ -259,7 +260,7 @@ public final class ConnectionStatusScreen extends Screen {
             drawText(graphics, playerName, LEFT, y + 1, contentRight - LEFT - 2,
                     self ? 0xFFFFFFFF : 0xFFDDDDDD);
             drawText(graphics, routeLabel(player, stale, hostingSelf), routeX, y + 17, routeWidth,
-                    routeColor(player.status(), stale, hostingSelf));
+                    routeColor(player.status(), stale, hostingSelf || player.host()));
             drawText(graphics, pingLabel(player.pingMillis(), stale), pingX, y + 17, pingWidth,
                     stale || player.pingMillis() < 0 ? 0xFFAAAAAA : 0xFFDDDDDD);
             graphics.fill(LEFT, y + rowHeight - 1, contentRight, y + rowHeight, 0x40333333);
@@ -296,7 +297,7 @@ public final class ConnectionStatusScreen extends Screen {
 
     private static String routeLabel(RouteStatus.PlayerRoute player, boolean stale, boolean hostingSelf) {
         if (stale) return Text.translatable("mclink.status_disconnected").getString();
-        if (hostingSelf) return Text.translatable("mclink.status_host").getString();
+        if (hostingSelf || player.host()) return Text.translatable("mclink.status_host").getString();
         return Text.translatable(RouteStatus.translationKey(player.status())).getString();
     }
 
@@ -304,9 +305,11 @@ public final class ConnectionStatusScreen extends Screen {
         if (stale) return 0xFFFF5555;
         if (hostingSelf) return 0xFFDDDDDD;
         return switch (status) {
+            case RouteStatus.NOT_TAILCAT -> 0xFF55AAFF;
             case RouteStatus.DIRECT -> 0xFF55FF55;
-            case RouteStatus.RELAY -> 0xFFFFCC55;
+            case RouteStatus.RELAY -> 0xFFFFAA33;
             case RouteStatus.UNKNOWN -> 0xFFFFFF55;
+            case RouteStatus.DISCONNECTED -> 0xFFFF5555;
             default -> 0xFFBBBBBB;
         };
     }

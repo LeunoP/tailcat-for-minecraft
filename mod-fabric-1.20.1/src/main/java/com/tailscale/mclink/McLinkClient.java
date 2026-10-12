@@ -19,6 +19,7 @@ public final class McLinkClient implements ClientModInitializer {
     private static ScreenState state;
 
     @Override public void onInitializeClient() {
+        RouteStatusPublisher.registerHeartbeatReceiver();
         ClientPlayNetworking.registerGlobalReceiver(RouteStatusPublisher.CHANNEL,
                 (client, handler, buffer, responseSender) -> {
                     if (buffer.isReadable() && buffer.readUnsignedByte() == 0) {
@@ -34,12 +35,13 @@ public final class McLinkClient implements ClientModInitializer {
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (screen instanceof GameMenuScreen) {
                 if (client.isIntegratedServerRunning()) addShareButton(client, screen);
-                if (state.hasActiveSession() || ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen);
+                if (ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen);
             } else if (screen instanceof MultiplayerScreen) {
                 addConnectButton(client, screen, width, height);
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            RouteStatusPublisher.sendHeartbeat(client);
             state.tick(client);
             String error = state.takeError();
             if (error != null) SystemToast.add(client.getToastManager(), SystemToast.Type.PERIODIC_NOTIFICATION,

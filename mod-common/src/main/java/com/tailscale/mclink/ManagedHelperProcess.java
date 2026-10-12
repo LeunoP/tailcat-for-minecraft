@@ -59,7 +59,7 @@ public final class ManagedHelperProcess implements AutoCloseable {
         }
     }
 
-    private ManagedHelperProcess(Process process, Consumer<HelperEvent> events, Consumer<String> logs) {
+    ManagedHelperProcess(Process process, Consumer<HelperEvent> events, Consumer<String> logs) {
         this.process = process;
         this.events = events;
         this.logs = logs == null ? line -> {} : logs;
@@ -169,8 +169,15 @@ public final class ManagedHelperProcess implements AutoCloseable {
                     process.destroy();
                     if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly();
                 }
+                if (process.isAlive() && !process.waitFor(2, TimeUnit.SECONDS)) {
+                    closed.completeExceptionally(new IOException("helper did not terminate after being killed"));
+                    return;
+                }
+                CHILDREN.remove(process);
+                closed.complete(null);
             } catch (InterruptedException interrupted) {
                 process.destroyForcibly();
+                closed.completeExceptionally(interrupted);
                 Thread.currentThread().interrupt();
             }
         });

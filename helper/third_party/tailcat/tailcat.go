@@ -28,6 +28,8 @@ package tailcat
 import (
 	"cmp"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -110,6 +112,8 @@ type ConnBlob string
 // via the wire types in wire.go.
 type ConnInfo struct {
 	ServerPublic NodePublic // a key.NodePublic
+	// ServerDiscoPublic is the server's independent path-discovery key.
+	ServerDiscoPublic DiscoPublic // a key.DiscoPublic
 
 	// Region, if non-empty, lists the regions of a DERPMap.
 	// Either Region or RegionID must be set. If Region is set
@@ -134,6 +138,30 @@ type ConnInfo struct {
 // smaller CBOR representation without the "np" prefix.
 type NodePublic struct {
 	key.NodePublic
+}
+
+// DiscoPublic is a wrapper around key.DiscoPublic for connection blobs.
+type DiscoPublic struct {
+	key.DiscoPublic
+}
+
+// Equal reports whether a and b represent the same disco public key.
+func (a DiscoPublic) Equal(b DiscoPublic) bool {
+	return a.DiscoPublic == b.DiscoPublic
+}
+
+// MarshalBinary implements encoding.BinaryMarshaler.
+func (p DiscoPublic) MarshalBinary() ([]byte, error) {
+	return p.DiscoPublic.AppendTo(nil), nil
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler.
+func (p *DiscoPublic) UnmarshalBinary(x []byte) error {
+	if len(x) != key.DiscoPublicRawLen {
+		return fmt.Errorf("invalid disco public key length %d, want %d", len(x), key.DiscoPublicRawLen)
+	}
+	p.DiscoPublic = key.DiscoPublicFromRaw32(go4mem.B(x))
+	return nil
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler for CBOR serialization,
@@ -169,6 +197,7 @@ func NewPrivateKey() *PrivateKey {
 		Private: key.NewNode(),
 	}
 	ret.Public.ServerPublic = NodePublic{ret.Private.Public()}
+	ret.Public.ServerDiscoPublic = DiscoPublicForNode(ret.Private)
 	return ret
 }
 
@@ -177,17 +206,18 @@ func NewPrivateKey() *PrivateKey {
 // but there's no controlclient involved, because there's
 // no control plane.
 type locoBackend struct {
-	sys        tsd.System
-	priv       key.NodePrivate
-	pub        key.NodePublic
-	addr       netip.Addr
-	addrPrefix netip.Prefix
-	ns         *netstack.Impl
-	dm         *tailcfg.DERPMap
-	logf       logger.Logf
-	serverPub  key.NodePublic // non-zero if we're a client (server's public key)
-	isServer   bool
-	relayOnly  atomic.Bool
+	sys            tsd.System
+	priv           key.NodePrivate
+	pub            key.NodePublic
+	addr           netip.Addr
+	addrPrefix     netip.Prefix
+	ns             *netstack.Impl
+	dm             *tailcfg.DERPMap
+	logf           logger.Logf
+	serverPub      key.NodePublic // non-zero if we're a client (server's public key)
+	serverDiscoPub key.DiscoPublic
+	isServer       bool
+	relayOnly      atomic.Bool
 
 	// discoPublic returns the node's disco public key, memoized to
 	// avoid redoing the curve25519 derivation for every client that
@@ -199,9 +229,17 @@ type locoBackend struct {
 	onDERPRecv func(regionID int, src key.NodePublic, pkt []byte) bool
 
 	mu             sync.Mutex
+	peerUpdateMu   sync.Mutex
 	clients        map[key.NodePublic]*tailcfg.Node // for the server
 	nm             *netmap.NetworkMap
 	allowedClients map[key.NodePublic]bool // or nil map for all
+	eps            []netip.AddrPort
+
+	advertiseMu     sync.Mutex
+	advertiseCtx    context.Context
+	advertiseCancel context.CancelFunc
+	advertiseWG     sync.WaitGroup
+	advertiseClosed bool
 }
 
 func (b *locoBackend) derpRegionID() int {
@@ -215,6 +253,15 @@ func (b *locoBackend) derpRegionID() int {
 }
 
 func (b *locoBackend) Close() error {
+	b.advertiseMu.Lock()
+	if !b.advertiseClosed {
+		b.advertiseClosed = true
+		if b.advertiseCancel != nil {
+			b.advertiseCancel()
+		}
+	}
+	b.advertiseMu.Unlock()
+	b.advertiseWG.Wait()
 	if e, ok := b.sys.Engine.GetOK(); ok {
 		e.Close()
 	}
@@ -329,16 +376,10 @@ func NewServer(priv key.NodePrivate, logf logger.Logf, regs ...*tailcfg.DERPRegi
 				// Only reply once the client is fully added as a peer:
 				// "meowed" is the ack that tells the client it can
 				// start dialing. Disallowed clients get no reply.
-				if lb.onMeow(src, discoPub) {
+				if allowed, added := lb.onMeow(src, discoPub); allowed {
 					mc.SendDERPPacketTo(src, regionID, EncodeMeowed())
-					if !lb.relayOnly.Load() {
-						go func() {
-							ctx, cancel := context.WithTimeout(context.Background(), endpointDiscoveryWait)
-							defer cancel()
-							if err := lb.sendCallMeMaybe(ctx, src, discoPub, regionID); err != nil {
-								lb.logf("initial endpoint discovery: %v", err)
-							}
-						}()
+					if added {
+						lb.advertiseEndpointsAsync()
 					}
 				}
 			}()
@@ -530,8 +571,9 @@ func newLocoBackend(priv key.NodePrivate) *locoBackend {
 		addr:       addr,
 		addrPrefix: addrPrefix,
 	}
+	lb.advertiseCtx, lb.advertiseCancel = context.WithCancel(context.Background())
 	lb.discoPublic = sync.OnceValue(func() key.DiscoPublic {
-		return nodePrivateAsDiscoPrivate(lb.priv).Public()
+		return discoPrivateForNode(lb.priv).Public()
 	})
 	return lb
 }
@@ -544,6 +586,7 @@ func (lb *locoBackend) ConnBlobForTest() ConnBlob {
 	}
 	var ci ConnInfo
 	ci.ServerPublic = NodePublic{lb.pub}
+	ci.ServerDiscoPublic = DiscoPublic{lb.discoPublic()}
 	for _, r := range lb.dm.Regions {
 		ci.Region = append(ci.Region, r)
 	}
@@ -565,6 +608,9 @@ func (ci *ConnInfo) ConnBlob() ConnBlob {
 	w := &wireConnInfo{
 		ServerPublic: ci.ServerPublic,
 		RegionID:     ci.RegionID,
+	}
+	if !ci.ServerDiscoPublic.IsZero() {
+		w.ServerDiscoPublic = &ci.ServerDiscoPublic
 	}
 	for _, r := range ci.Region {
 		wr := wireRegionOf(r)
@@ -644,6 +690,9 @@ func ParseConnBlob(cb ConnBlob) (ConnInfo, error) {
 	ci := ConnInfo{
 		ServerPublic: w.ServerPublic,
 		RegionID:     w.RegionID,
+	}
+	if w.ServerDiscoPublic != nil {
+		ci.ServerDiscoPublic = *w.ServerDiscoPublic
 	}
 	for _, wr := range w.Region {
 		ci.Region = append(ci.Region, wr.derpRegion())
@@ -818,7 +867,9 @@ func (lb *locoBackend) Start() error {
 	e := lb.sys.Engine.Get()
 	mc := lb.sys.MagicSock.Get()
 	lb.logf("disco pub key: %v", mc.DiscoPublicKey())
+	e.SetStatusCallback(lb.onEngineStatus)
 
+	mc.SetNetworkUp(true)
 	mc.SetPrivateKey(lb.priv)
 	mc.SetDERPMap(lb.dm)
 
@@ -861,7 +912,7 @@ func (lb *locoBackend) Start() error {
 			Name:       "server.tailcat.",
 			User:       100,
 			Key:        lb.serverPub,
-			DiscoKey:   nodePublicAsDiscoPublic(lb.serverPub),
+			DiscoKey:   lb.serverDiscoPub,
 			Addresses:  []netip.Prefix{serverAddrPrefix},
 			AllowedIPs: []netip.Prefix{serverAddrPrefix, allIPv6},
 			HomeDERP:   derpRegion,
@@ -873,7 +924,6 @@ func (lb *locoBackend) Start() error {
 
 	mc.SetNetworkMap(nm.SelfNode, nm.Peers)
 	lb.sys.Netstack.Get().UpdateNetstackIPs(nm)
-	mc.SetNetworkUp(true)
 	lb.logf("NetworkMap: %v", logger.AsJSON(nm))
 
 	// Install the live per-peer config sources. WireGuard peers are
@@ -906,17 +956,22 @@ func (lb *locoBackend) Start() error {
 // disco key discoPub, adding it as a WireGuard peer. It reports
 // whether the client is allowed and configured, meaning a "meowed"
 // acknowledgment may be sent.
-func (b *locoBackend) onMeow(src key.NodePublic, discoPub key.DiscoPublic) bool {
+func (b *locoBackend) onMeow(src key.NodePublic, discoPub key.DiscoPublic) (allowed, added bool) {
+	// Serialize the snapshot and engine application together. Concurrent meows
+	// must not apply an older peer snapshot after a newer one.
+	b.peerUpdateMu.Lock()
+	defer b.peerUpdateMu.Unlock()
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.logf("got meow from %v", src.String())
 	if b.allowedClients != nil && !b.allowedClients[src] {
 		b.logf("ignoring meow from %v: not in allowedClients", src.String())
-		return false
+		b.mu.Unlock()
+		return false, false
 	}
 
 	if _, ok := b.clients[src]; ok {
-		return true
+		b.mu.Unlock()
+		return true, false
 	}
 	id := len(b.clients) + 2 // server is ID 1, clients are IDs 2, 3, ...
 	derpRegion := b.derpRegionID()
@@ -953,6 +1008,7 @@ func (b *locoBackend) onMeow(src key.NodePublic, discoPub key.DiscoPublic) bool 
 		return cmp.Compare(a.ID(), b.ID())
 	})
 	b.nm = nm
+	b.mu.Unlock()
 
 	mc := b.sys.MagicSock.Get()
 	mc.SetNetworkMap(nm.SelfNode, nm.Peers)
@@ -961,7 +1017,7 @@ func (b *locoBackend) onMeow(src key.NodePublic, discoPub key.DiscoPublic) bool 
 	// No engine reconfig needed: the WireGuard device learns about the
 	// new peer lazily via the config source installed with
 	// SetPeerConfigFunc when the client's handshake arrives.
-	return true
+	return true, true
 }
 
 func (b *locoBackend) Status() *ipnstate.Status {
@@ -984,56 +1040,71 @@ func (b *locoBackend) Status() *ipnstate.Status {
 	return sb.Status()
 }
 
-const endpointDiscoveryWait = 5 * time.Second
-
-func (b *locoBackend) localEndpoints(ctx context.Context) ([]netip.AddrPort, error) {
-	mc := b.sys.MagicSock.Get()
-	read := func() []netip.AddrPort {
-		var sb ipnstate.StatusBuilder
-		mc.UpdateStatus(&sb)
-		status := sb.Status()
-		if status.Self == nil {
-			return nil
-		}
-		seen := make(map[netip.AddrPort]struct{}, len(status.Self.Addrs))
-		endpoints := make([]netip.AddrPort, 0, len(status.Self.Addrs))
-		for _, raw := range status.Self.Addrs {
-			endpoint, err := netip.ParseAddrPort(raw)
-			if err != nil || endpoint.Port() == 0 {
-				continue
-			}
-			addr := endpoint.Addr().Unmap()
-			if !addr.IsValid() || addr.IsUnspecified() || addr.IsLoopback() || addr.IsMulticast() {
-				continue
-			}
-			endpoint = netip.AddrPortFrom(addr, endpoint.Port())
-			if _, ok := seen[endpoint]; ok {
-				continue
-			}
-			seen[endpoint] = struct{}{}
-			endpoints = append(endpoints, endpoint)
-		}
-		return endpoints
+func (b *locoBackend) onEngineStatus(st *wgengine.Status, err error) {
+	if err != nil || st == nil {
+		return
 	}
-	if endpoints := read(); len(endpoints) != 0 {
-		return endpoints, nil
+	eps := make([]netip.AddrPort, 0, len(st.LocalAddrs))
+	for _, ep := range st.LocalAddrs {
+		eps = append(eps, ep.Addr)
 	}
+	if b.updateEndpoints(eps) {
+		b.advertiseEndpointsAsync()
+	}
+}
 
-	mc.ReSTUN("tailcat-peer-bootstrap")
-	timer := time.NewTimer(endpointDiscoveryWait)
-	defer timer.Stop()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-timer.C:
-			return nil, errors.New("no local UDP endpoints discovered")
-		case <-ticker.C:
-			if endpoints := read(); len(endpoints) != 0 {
-				return endpoints, nil
-			}
+func (b *locoBackend) updateEndpoints(eps []netip.AddrPort) bool {
+	eps = slices.Clone(eps)
+	slices.SortFunc(eps, func(a, b netip.AddrPort) int { return a.Compare(b) })
+	eps = slices.Compact(eps)
+	b.mu.Lock()
+	changed := !slices.Equal(eps, b.eps)
+	if changed {
+		b.eps = eps
+	}
+	b.mu.Unlock()
+	return changed && len(eps) != 0 && !b.relayOnly.Load()
+}
+
+func (b *locoBackend) advertiseEndpointsAsync() {
+	if b.relayOnly.Load() {
+		return
+	}
+	b.advertiseMu.Lock()
+	if b.advertiseClosed || b.advertiseCtx == nil {
+		b.advertiseMu.Unlock()
+		return
+	}
+	b.advertiseWG.Add(1)
+	ctx := b.advertiseCtx
+	b.advertiseMu.Unlock()
+	go func() {
+		defer b.advertiseWG.Done()
+		b.advertiseEndpoints(ctx)
+	}()
+}
+
+func (b *locoBackend) advertiseEndpoints(ctx context.Context) {
+	if ctx.Err() != nil || b.relayOnly.Load() {
+		return
+	}
+	b.mu.Lock()
+	eps := slices.Clone(b.eps)
+	var peers []tailcfg.NodeView
+	if b.nm != nil {
+		peers = slices.Clone(b.nm.Peers)
+	}
+	b.mu.Unlock()
+	if len(eps) == 0 || len(peers) == 0 {
+		return
+	}
+	regionID := b.derpRegionID()
+	for _, peer := range peers {
+		if ctx.Err() != nil || b.relayOnly.Load() {
+			return
+		}
+		if err := b.sendCallMeMaybe(ctx, peer.Key(), peer.DiscoKey(), regionID, eps); err != nil {
+			b.logf("endpoint discovery to %v: %v", peer.Key().ShortString(), err)
 		}
 	}
 }
@@ -1045,15 +1116,14 @@ func encodeCallMeMaybe(local key.DiscoPrivate, peer key.DiscoPublic, endpoints [
 	return append(packet, local.Shared(peer).Seal(payload)...)
 }
 
-func (b *locoBackend) sendCallMeMaybe(ctx context.Context, peerNode key.NodePublic, peerDisco key.DiscoPublic, regionID int) error {
-	if b.relayOnly.Load() {
+func (b *locoBackend) sendCallMeMaybe(ctx context.Context, peerNode key.NodePublic, peerDisco key.DiscoPublic, regionID int, endpoints []netip.AddrPort) error {
+	if b.relayOnly.Load() || ctx.Err() != nil {
 		return nil
 	}
-	endpoints, err := b.localEndpoints(ctx)
-	if err != nil {
-		return err
+	if len(endpoints) == 0 {
+		return nil
 	}
-	localDisco := nodePrivateAsDiscoPrivate(b.priv)
+	localDisco := discoPrivateForNode(b.priv)
 	packet := encodeCallMeMaybe(localDisco, peerDisco, endpoints)
 	sent, err := b.sys.MagicSock.Get().SendDERPPacketTo(peerNode, regionID, packet)
 	if err != nil {
@@ -1111,7 +1181,7 @@ func createEngine(logf logger.Logf, lb *locoBackend) (err error) {
 	}
 	// Deriving each side's disco key from its node key lets Tailcat send
 	// initial CallMeMaybe messages encrypted end-to-end over DERP.
-	conf.ForceDiscoKey = nodePrivateAsDiscoPrivate(lb.priv)
+	conf.ForceDiscoKey = discoPrivateForNode(lb.priv)
 	netns.SetEnabled(false)
 	e, err := wgengine.NewUserspaceEngine(logf, conf)
 	if err != nil {
@@ -1159,11 +1229,15 @@ func NewClient(logf logger.Logf, server ConnBlob, priv key.NodePrivate) (*Client
 	if err != nil {
 		return nil, err
 	}
+	if err := validateServerDiscoPublic(ci); err != nil {
+		return nil, err
+	}
 
 	lb := newLocoBackend(priv)
 	lb.logf = logf
 	lb.dm = &tailcfg.DERPMap{}
 	lb.serverPub = ci.ServerPublic.NodePublic
+	lb.serverDiscoPub = ci.ServerDiscoPublic.DiscoPublic
 
 	sys := &lb.sys
 	bus := eventbus.New()
@@ -1185,7 +1259,10 @@ func NewClient(logf logger.Logf, server ConnBlob, priv key.NodePrivate) (*Client
 	sys.Set(store)
 
 	meowWait := make(chan struct{})
-	onMeowed := sync.OnceFunc(func() { close(meowWait) })
+	onMeowed := sync.OnceFunc(func() {
+		close(meowWait)
+		lb.advertiseEndpointsAsync()
+	})
 	lb.onDERPRecv = func(regionID int, src key.NodePublic, pkt []byte) bool {
 		if !IsMeowPacket(pkt) {
 			return false
@@ -1326,8 +1403,8 @@ func (c *Client) Ping(ctx context.Context) (PingResult, error) {
 	return res, err
 }
 
-// ping sends a single meow ping and waits for the meowed ack. The
-// client must be started.
+// ping sends a meow ping and waits for the meowed ack. The client must be
+// started.
 func (c *Client) ping(ctx context.Context) (PingResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -1340,26 +1417,34 @@ func (c *Client) ping(ctx context.Context) (PingResult, error) {
 	derpRegion := c.lb.derpRegionID()
 	pkt := EncodeMeowPing(c.lb.pub, mc.DiscoPublicKey())
 
-	sent, err := mc.SendDERPPacketTo(dstNode, derpRegion, pkt)
-	if err != nil {
-		return zero, fmt.Errorf("sending meow: %w", err)
-	}
-	if !sent {
-		return zero, fmt.Errorf("meow not sent")
-	}
-
-	select {
-	case <-c.meowWait:
-		if !c.lb.relayOnly.Load() {
-			endpointCtx, endpointCancel := context.WithTimeout(ctx, endpointDiscoveryWait)
-			if err := c.lb.sendCallMeMaybe(endpointCtx, dstNode, nodePublicAsDiscoPublic(dstNode), derpRegion); err != nil {
-				c.lb.logf("initial endpoint discovery: %v", err)
-			}
-			endpointCancel()
+	// DERP delivery is best effort and drops packets for destinations that
+	// are not connected yet. The server acknowledges every meow, so periodic
+	// retries are safe and let the handshake survive relay startup races.
+	send := func() error {
+		sent, err := mc.SendDERPPacketTo(dstNode, derpRegion, pkt)
+		if err != nil {
+			return fmt.Errorf("sending meow: %w", err)
 		}
-		return PingResult{time.Since(t0)}, nil
-	case <-ctx.Done():
-		return zero, ctx.Err()
+		if !sent {
+			return errors.New("meow not sent")
+		}
+		return nil
+	}
+	lastSendErr := send()
+	resend := time.NewTicker(time.Second)
+	defer resend.Stop()
+	for {
+		select {
+		case <-c.meowWait:
+			return PingResult{time.Since(t0)}, nil
+		case <-ctx.Done():
+			if lastSendErr != nil {
+				return zero, fmt.Errorf("%w (last send error: %v)", ctx.Err(), lastSendErr)
+			}
+			return zero, ctx.Err()
+		case <-resend.C:
+			lastSendErr = send()
+		}
 	}
 }
 
@@ -1453,18 +1538,31 @@ func (s *Server) Status() *ipnstate.Status {
 	return s.lb.Status()
 }
 
-// nodePrivateAsDiscoPrivate converts a NodePrivate to a DiscoPrivate by
-// reusing the same raw key bytes. This is used in tailcat where the server
-// uses its node key as the disco key.
-func nodePrivateAsDiscoPrivate(k key.NodePrivate) key.DiscoPrivate {
+// discoPrivateForNode derives an independent path-discovery key from a node
+// private key.
+func discoPrivateForNode(k key.NodePrivate) key.DiscoPrivate {
 	raw := k.Raw32()
-	return key.DiscoPrivateFromRaw32(go4mem.B(raw[:]))
+	mac := hmac.New(sha256.New, raw[:])
+	_, _ = mac.Write([]byte("github.com/tailscale/tailcat disco key v1"))
+	discoRaw := mac.Sum(nil)
+	discoRaw[0] &= 248
+	discoRaw[31] &= 127
+	discoRaw[31] |= 64
+	return key.DiscoPrivateFromRaw32(go4mem.B(discoRaw))
 }
 
-// nodePublicAsDiscoPublic converts a NodePublic to a DiscoPublic by
-// reusing the same raw key bytes. This is used in tailcat where the
-// server's node public key doubles as its disco public key.
-func nodePublicAsDiscoPublic(k key.NodePublic) key.DiscoPublic {
-	raw := k.Raw32()
-	return key.DiscoPublicFromRaw32(go4mem.B(raw[:]))
+// DiscoPublicForNode returns the independent path-discovery key for a node.
+// Code constructing a [ConnInfo] directly must include this key.
+func DiscoPublicForNode(k key.NodePrivate) DiscoPublic {
+	return DiscoPublic{discoPrivateForNode(k).Public()}
+}
+
+func validateServerDiscoPublic(ci ConnInfo) error {
+	if ci.ServerDiscoPublic.IsZero() {
+		return errors.New("legacy server address lacks a separate disco key; generate a new invite with an updated host")
+	}
+	if ci.ServerDiscoPublic.Raw32() == ci.ServerPublic.Raw32() {
+		return errors.New("server disco key must be independent from its node key; generate a new invite with an updated host")
+	}
+	return nil
 }

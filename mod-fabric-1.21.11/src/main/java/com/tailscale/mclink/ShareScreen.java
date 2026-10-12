@@ -40,6 +40,12 @@ public final class ShareScreen extends Screen {
     }
 
     @Override
+    public boolean shouldPause() {
+        ScreenState state = McLinkClient.state();
+        return !starting && !state.isHosting() && !state.isRestoring();
+    }
+
+    @Override
     public void tick() {
         super.tick();
         if (hostingLayout && !starting && !McLinkClient.state().isHosting()) {

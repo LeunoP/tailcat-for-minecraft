@@ -25,6 +25,8 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
         String version = getDescription().getVersion();
         routeStatusPublisher = new RouteStatusPublisher(this);
         getServer().getMessenger().registerOutgoingPluginChannel(this, RouteStatusPublisher.CHANNEL);
+        getServer().getMessenger().registerIncomingPluginChannel(this, RouteStatusPublisher.HEARTBEAT_CHANNEL,
+                (channel, player, message) -> RouteStatusLiveness.heartbeat(player.getUniqueId()));
         tunnel = new ServerTunnelController<>(this::onMainThread,
                 (args, relayOnly, events, logs) -> PluginHelperProcess.start(data, version, args, events, logs, relayOnly),
                 PluginHelperProcess::isAlive, PluginHelperProcess::closed, process -> process.ready(Duration.ofSeconds(120)),
@@ -49,6 +51,7 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
         enabled = false;
         if (routeStatusPublisher != null) routeStatusPublisher.clear();
         getServer().getMessenger().unregisterOutgoingPluginChannel(this, RouteStatusPublisher.CHANNEL);
+        getServer().getMessenger().unregisterIncomingPluginChannel(this, RouteStatusPublisher.HEARTBEAT_CHANNEL);
         if (tunnel != null) tunnel.close();
     }
 
@@ -120,28 +123,18 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
             sender.sendMessage(ChatColor.GOLD + message("status_title"));
             int count = 0;
             for (Player player : Bukkit.getOnlinePlayers()) {
-                if (isTailcatPlayer(player)) {
-                    sender.sendMessage(formatPlayerLine(player));
-                    count++;
-                }
+                sender.sendMessage(formatPlayerLine(player));
+                count++;
             }
             if (count == 0) {
                 sender.sendMessage(ChatColor.GRAY + message("no_players"));
             }
         } else if (sender instanceof Player player) {
-            if (isTailcatPlayer(player)) {
-                sender.sendMessage(formatPlayerLine(player));
-            } else {
-                sender.sendMessage(ChatColor.GRAY + message("not_connected"));
-            }
+            sender.sendMessage(formatPlayerLine(player));
         } else {
             sender.sendMessage(ChatColor.GRAY + message("console_permission"));
         }
         return true;
-    }
-
-    private boolean isTailcatPlayer(Player player) {
-        return tunnel != null && tunnel.owns(player.getAddress());
     }
 
     private String message(String key) { return ServerMessages.text(tunnel.config().language(), "mclink.server." + key); }
@@ -149,10 +142,21 @@ public final class TailcatPlugin extends JavaPlugin implements CommandExecutor, 
     private String formatPlayerLine(Player player) {
         int ping = player.getPing();
         int status = tunnel == null ? RouteStatus.NOT_TAILCAT : tunnel.connectionStatus(player.getAddress());
+        status = RouteStatusLiveness.effectiveStatus(player.getUniqueId(), status, false);
         String route = RouteStatus.commandLabel(status, tunnel == null ? "en_us" : tunnel.config().language());
 
         return ChatColor.GRAY + "[ " + ChatColor.GREEN + player.getName() + ChatColor.GRAY + " ] " +
-               ChatColor.AQUA + route + " " + ChatColor.WHITE + ping + "ms";
+               routeColor(status) + route + " " + ChatColor.WHITE + ping + "ms";
+    }
+
+    private ChatColor routeColor(int status) {
+        return switch (status) {
+            case RouteStatus.NOT_TAILCAT -> ChatColor.BLUE;
+            case RouteStatus.DIRECT -> ChatColor.GREEN;
+            case RouteStatus.RELAY -> ChatColor.GOLD;
+            case RouteStatus.DISCONNECTED -> ChatColor.RED;
+            default -> ChatColor.YELLOW;
+        };
     }
 
     @Override

@@ -77,6 +77,34 @@ class ManagedHelperProcessTest {
                 new ProcessBuilder("tailcat-test-executable-that-does-not-exist"), event -> {}, null));
     }
 
+    @Test void closeCompletesWhenProcessExitNotificationNeverArrives() throws Exception {
+        Process child = child("normal").start();
+        Process missingNotification = new Process() {
+            @Override public java.io.OutputStream getOutputStream() { return child.getOutputStream(); }
+            @Override public java.io.InputStream getInputStream() { return child.getInputStream(); }
+            @Override public java.io.InputStream getErrorStream() { return child.getErrorStream(); }
+            @Override public int waitFor() throws InterruptedException { return child.waitFor(); }
+            @Override public boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException {
+                return child.waitFor(timeout, unit);
+            }
+            @Override public int exitValue() { return child.exitValue(); }
+            @Override public boolean isAlive() { return child.isAlive(); }
+            @Override public void destroy() { child.destroy(); }
+            @Override public Process destroyForcibly() { child.destroyForcibly(); return this; }
+            @Override public CompletableFuture<Process> onExit() { return new CompletableFuture<>(); }
+        };
+        ManagedHelperProcess helper = new ManagedHelperProcess(missingNotification, event -> {}, null);
+        try {
+            helper.ready(Duration.ofSeconds(5)).get(5, TimeUnit.SECONDS);
+            helper.close();
+            helper.closed().get(8, TimeUnit.SECONDS);
+            assertFalse(child.isAlive());
+        } finally {
+            helper.close();
+            if (child.isAlive()) child.destroyForcibly();
+        }
+    }
+
     @Test
     @EnabledOnOs(OS.WINDOWS)
     void bundledHelperKeepsInvalidInviteErrorInsteadOfExitRace() throws Exception {

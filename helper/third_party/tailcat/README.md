@@ -111,9 +111,15 @@ ConnBlob internally). It looks like `tcXYZ...` and is a `"tc"` prefix
 followed by base64-encoded [CBOR](https://cbor.io/) containing:
 
 - The server's WireGuard public key (Curve25519, 32 bytes)
+- The server's separate Disco public key for encrypted endpoint discovery
 - A DERP relay region identifier (a small integer referencing one of
   Tailscale's global relay servers), or an embedded DERP node list for
   custom relays
+
+Older connection tokens that do not contain the separate Disco key are
+rejected. After upgrading a host to a version with separate Disco keys,
+generate and distribute a fresh token. A single current token remains
+shareable with multiple clients.
 
 A typical token with just a region ID is around 50 bytes. With embedded
 DERP node details it's longer but self-contained (the client doesn't

@@ -30,6 +30,7 @@ public final class McLinkClient implements ClientModInitializer {
 
     @Override public void onInitializeClient() {
         RouteStatusPublisher.registerPayload();
+        RouteStatusPublisher.registerHeartbeatReceiver();
         ClientPlayConnectionEvents.INIT.register((handler, client) -> {
             var connection = handler.getConnection();
             RouteStatusCache.beginSession(connection);
@@ -41,12 +42,13 @@ public final class McLinkClient implements ClientModInitializer {
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (screen instanceof PauseScreen) {
                 if (client.hasSingleplayerServer()) addShareButton(client, screen);
-                if (state.hasActiveSession() || ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen);
+                if (ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen);
             } else if (screen instanceof JoinMultiplayerScreen) {
                 addConnectButton(client, screen, width, height);
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            RouteStatusPublisher.sendHeartbeat(client);
             state.tick(client);
             String error = state.takeError();
             if (error != null) {

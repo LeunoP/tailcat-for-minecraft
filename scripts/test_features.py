@@ -84,6 +84,21 @@ class FeatureSourceContracts(unittest.TestCase):
             state = (java / "ScreenState.java").read_text(encoding="utf-8")
             self.assertIn("return isHosting() && publicationLease == null;", state)
 
+    def test_share_screen_allows_paused_server_cleanup_to_finish(self):
+        matrix = json.loads((ROOT / "scripts/support_matrix.json").read_text(encoding="utf-8"))["targets"]
+        for target in matrix:
+            if target["loader"] == "paper":
+                continue
+            java = ROOT / target["module"] / "src/main/java/com/tailscale/mclink"
+            screen = (java / "ShareScreen.java").read_text(encoding="utf-8")
+            state = (java / "ScreenState.java").read_text(encoding="utf-8")
+            uses_yarn = target["loader"] == "fabric" and target["minecraft"].startswith("1.")
+            pause_method = "public boolean shouldPause()" if uses_yarn else "public boolean isPauseScreen()"
+            self.assertIn(pause_method, screen, target["module"])
+            self.assertIn("return !starting && !state.isHosting() && !state.isRestoring();", screen, target["module"])
+            self.assertIn("public synchronized boolean isRestoring()", state, target["module"])
+            self.assertIn("return !restoring.isDone();", state, target["module"])
+
     def test_pause_menu_connection_status_is_shared_by_all_mod_loaders(self):
         matrix = json.loads((ROOT / "scripts/support_matrix.json").read_text(encoding="utf-8"))["targets"]
         for target in matrix:
@@ -167,9 +182,22 @@ class FeatureSourceContracts(unittest.TestCase):
                 self.assertIn("RouteStatusCache.beginSession(event.getConnection())", client, target["module"])
                 self.assertIn("RouteStatusCache.endSession(event.getConnection())", client, target["module"])
                 if target["minecraft"] == "1.20.1":
-                    self.assertIn("receive(context.get().getNetworkManager(), bytes)", publisher, target["module"])
+                    self.assertIn("receive(context.get().getNetworkManager(), payload.bytes())", publisher, target["module"])
+                    self.assertIn('new ResourceLocation("mclink", "connection_heartbeat")', publisher, target["module"])
+                    self.assertIn("NetworkEvent.ServerCustomPayloadEvent", publisher, target["module"])
+                    self.assertIn("ServerboundCustomPayloadPacket(HEARTBEAT_ID", publisher, target["module"])
+                elif target["minecraft"] in ("26.2", "26.3"):
+                    self.assertIn(".payloadChannel()", publisher, target["module"])
+                    self.assertIn(".play().clientbound().addMain(TYPE, CODEC", publisher, target["module"])
+                    self.assertIn(".serverbound().add(HEARTBEAT_TYPE, HEARTBEAT_CODEC", publisher, target["module"])
+                    self.assertIn("CHANNEL.send(new HeartbeatPayload(), PacketDistributor.SERVER.noArg())", publisher, target["module"])
+                    self.assertIn("receive(context.getConnection(), payload.bytes())", publisher, target["module"])
+                elif target["minecraft"] in ("1.21.1", "1.21.11"):
+                    self.assertIn(".payloadChannel()", publisher, target["module"])
+                    self.assertIn('"connection_heartbeat"', publisher, target["module"])
+                    self.assertIn("CHANNEL.send(new HeartbeatPayload(), PacketDistributor.SERVER.noArg())", publisher, target["module"])
                 else:
-                    self.assertIn("receive(context.getConnection(), bytes)", publisher, target["module"])
+                    self.assertIn("receive(context.getConnection(), payload.bytes())", publisher, target["module"])
                 self.assertIn("RouteStatusCache.accept(connection, bytes)", publisher, target["module"])
             else:
                 self.assertIn("ClientPlayerNetworkEvent.LoggingIn", client, target["module"])
@@ -177,7 +205,7 @@ class FeatureSourceContracts(unittest.TestCase):
                 self.assertIn("RouteStatusCache.beginSession(event.getConnection())", client, target["module"])
                 self.assertIn("RouteStatusCache.endSession(event.getConnection())", client, target["module"])
                 if target["minecraft"] == "1.20.1":
-                    self.assertIn("receive(context.get().getNetworkManager(), bytes)", publisher, target["module"])
+                    self.assertIn("receive(context.get().getNetworkManager(), payload.bytes())", publisher, target["module"])
                     self.assertIn("RouteStatusCache.accept(connection, bytes)", publisher, target["module"])
                 else:
                     self.assertIn("receive(context.connection(), payload)", publisher, target["module"])

@@ -64,6 +64,7 @@ public final class ScreenState implements AutoCloseable {
         }
         stop();
         IntegratedServer server = client.getServer();
+        if (client.player != null) RouteStatusHostRegistry.register(server, client.player.getName().getString());
         if (!restoring.isDone()) return share(client, relayOnly, requestedMaxPlayers);
         if (server == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("No integrated server is running"));
@@ -99,6 +100,10 @@ public final class ScreenState implements AutoCloseable {
             server.setOnlineMode(previousOnlineMode);
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    public synchronized boolean isRestoring() {
+        return !restoring.isDone();
     }
 
     public synchronized boolean isHosting() {
@@ -232,6 +237,7 @@ public final class ScreenState implements AutoCloseable {
         diagnostics.stopped();
         if (stopped != null) stopped.process.close();
         IntegratedServer server = stopped == null ? null : stopped.offlineAuthServer;
+        RouteStatusHostRegistry.forget(server);
         Runnable restore = () -> {
             if (stopped != null && stopped.mode == SessionMode.HOST && server != null) RouteStatusPublisher.clear(server);
             if (stoppedPublication != null) stoppedPublication.restore();

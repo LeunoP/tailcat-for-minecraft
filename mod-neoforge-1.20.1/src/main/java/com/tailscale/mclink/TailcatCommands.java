@@ -67,20 +67,14 @@ public final class TailcatCommands {
             source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.status_title")).withStyle(ChatFormatting.GOLD), false);
             int count = 0;
             for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
-                if (isTailcatPlayer(player)) {
-                    source.sendSuccess(() -> formatPlayerLine(player), false);
-                    count++;
-                }
+                source.sendSuccess(() -> formatPlayerLine(player), false);
+                count++;
             }
             if (count == 0) {
                 source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.no_players")).withStyle(ChatFormatting.GRAY), false);
             }
         } else if (executingPlayer != null) {
-            if (isTailcatPlayer(executingPlayer)) {
-                source.sendSuccess(() -> formatPlayerLine(executingPlayer), false);
-            } else {
-                source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.not_connected")).withStyle(ChatFormatting.GRAY), false);
-            }
+            source.sendSuccess(() -> formatPlayerLine(executingPlayer), false);
         } else {
             source.sendSuccess(() -> Component.literal(ServerMessages.text(ServerShareHandler.language(), "mclink.server.console_permission")).withStyle(ChatFormatting.GRAY), false);
         }
@@ -104,13 +98,25 @@ public final class TailcatCommands {
         int ping = player.connection != null ? player.latency : 0;
 
         SocketAddress address = player.connection == null ? null : player.connection.getRemoteAddress();
-        String route = RouteStatus.commandLabel(ServerShareHandler.connectionStatus(address), ServerShareHandler.language());
+        int status = RouteStatusLiveness.effectiveStatus(player.getUUID(),
+                ServerShareHandler.connectionStatus(address), false);
+        String route = RouteStatus.commandLabel(status, ServerShareHandler.language());
 
         return Component.literal("[ ")
             .withStyle(ChatFormatting.GRAY)
             .append(Component.literal(player.getScoreboardName()).withStyle(ChatFormatting.GREEN))
             .append(Component.literal(" ] ").withStyle(ChatFormatting.GRAY))
-            .append(Component.literal(route + " ").withStyle(ChatFormatting.AQUA))
+            .append(Component.literal(route + " ").withStyle(routeColor(status)))
             .append(Component.literal(ping + "ms").withStyle(ChatFormatting.WHITE));
+    }
+
+    private static ChatFormatting routeColor(int status) {
+        return switch (status) {
+            case RouteStatus.NOT_TAILCAT -> ChatFormatting.BLUE;
+            case RouteStatus.DIRECT -> ChatFormatting.GREEN;
+            case RouteStatus.RELAY -> ChatFormatting.GOLD;
+            case RouteStatus.DISCONNECTED -> ChatFormatting.RED;
+            default -> ChatFormatting.YELLOW;
+        };
     }
 }

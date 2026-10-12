@@ -27,7 +27,7 @@ class BuildValidationTest(unittest.TestCase):
         self.root_patch.stop()
         self.workspace.cleanup()
 
-    def jar(self, version="0.3.0", java=17, corrupt_helper=False):
+    def jar(self, version="0.3.1", java=17, corrupt_helper=False):
         path = self.root / "plugin.jar"
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr("plugin.yml", f"name: Tailcat\nversion: '{version}'\n")
@@ -68,37 +68,37 @@ class BuildValidationTest(unittest.TestCase):
 
     def test_valid_artifact_records_hash_and_no_gameplay_claim(self):
         jar = self.jar()
-        entry = build_all.inspect_jar(jar, self.target, "0.3.0")
+        entry = build_all.inspect_jar(jar, self.target, "0.3.1")
         self.assertEqual(build_all.sha256(jar.read_bytes()), entry["jar_sha256"])
         self.assertFalse(entry["gameplay_verified"])
 
     def test_blank_paper_version_is_rejected(self):
         with self.assertRaises(RuntimeError):
-            build_all.inspect_jar(self.jar(version=""), self.target, "0.3.0")
+            build_all.inspect_jar(self.jar(version=""), self.target, "0.3.1")
 
     def test_wrong_class_java_is_rejected(self):
         with self.assertRaises(RuntimeError):
-            build_all.inspect_jar(self.jar(java=25), self.target, "0.3.0")
+            build_all.inspect_jar(self.jar(java=25), self.target, "0.3.1")
 
     def test_native_mismatch_is_rejected(self):
         with self.assertRaises(RuntimeError):
-            build_all.inspect_jar(self.jar(corrupt_helper=True), self.target, "0.3.0")
+            build_all.inspect_jar(self.jar(corrupt_helper=True), self.target, "0.3.1")
 
     def fabric_jar(self, java_requirement=">=25"):
         jar = self.jar(java=25)
         with zipfile.ZipFile(jar, "a") as archive:
-            archive.writestr("fabric.mod.json", json.dumps({"id": "tailcat-for-minecraft", "version": "0.3.0",
+            archive.writestr("fabric.mod.json", json.dumps({"id": "tailcat-for-minecraft", "version": "0.3.1",
                 "depends": {"minecraft": "26.2", "fabricloader": ">=0.19.3", "java": java_requirement}}))
         return jar
 
     def test_fabric_new_id_is_verified(self):
         target = {**self.target, "loader": "fabric", "mod_id": "tailcat-for-minecraft", "runtime_java": 25}
-        self.assertEqual("tailcat-for-minecraft", build_all.inspect_jar(self.fabric_jar(), target, "0.3.0")["mod_id"])
+        self.assertEqual("tailcat-for-minecraft", build_all.inspect_jar(self.fabric_jar(), target, "0.3.1")["mod_id"])
 
     def test_fabric_java_requirement_must_match_classes(self):
         target = {**self.target, "loader": "fabric", "mod_id": "tailcat-for-minecraft", "runtime_java": 25}
         with self.assertRaises(RuntimeError):
-            build_all.inspect_jar(self.fabric_jar(java_requirement=">=21"), target, "0.3.0")
+            build_all.inspect_jar(self.fabric_jar(java_requirement=">=21"), target, "0.3.1")
 
 
 class IsolatedRunnerTest(unittest.TestCase):
@@ -151,11 +151,11 @@ class IsolatedRunnerTest(unittest.TestCase):
                 {"uid": "net.fabricmc.fabric-loader", "version": "0.19.5"}]}), encoding="utf-8")
             dist = root / "dist"
             dist.mkdir()
-            jar = "tailcat-for-minecraft-fabric-26.3-0.3.0.jar"
+            jar = "tailcat-for-minecraft-fabric-26.3-0.3.1.jar"
             (dist / jar).write_bytes(b"new mod")
             (dist / "release-manifest.json").write_text(json.dumps({"artifacts": [
                 {"module": "mod-fabric-26.3", "jar_sha256": "test-hash"}]}), encoding="utf-8")
-            with patch.object(test_instances, "ROOT", root), patch.object(build_all, "mod_version", return_value="0.3.0"), \
+            with patch.object(test_instances, "ROOT", root), patch.object(build_all, "mod_version", return_value="0.3.1"), \
                     patch.object(build_all, "inspect_jar", return_value={"jar_sha256": "test-hash"}):
                 clone, clone_game = test_instances.prepare_instance(source, instances, "mod-fabric-26.3")
             self.assertTrue((clone / ".tailcat-test-instance.json").is_file())

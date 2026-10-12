@@ -20,9 +20,10 @@ import (
 
 // wireConnInfo is the wire form of [ConnInfo].
 type wireConnInfo struct {
-	ServerPublic NodePublic    `cbor:"p"`
-	Region       []*wireRegion `cbor:"r,omitempty"`
-	RegionID     int           `cbor:"i,omitempty"`
+	ServerPublic      NodePublic    `cbor:"p"`
+	ServerDiscoPublic *DiscoPublic  `cbor:"k,omitempty"`
+	Region            []*wireRegion `cbor:"r,omitempty"`
+	RegionID          int           `cbor:"i,omitempty"`
 }
 
 // wireRegion is the wire form of [tailcfg.DERPRegion].

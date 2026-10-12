@@ -50,7 +50,7 @@ public final class McLinkClient {
         Minecraft client = Minecraft.getInstance();
         if (screen instanceof PauseScreen) {
             if (client.hasSingleplayerServer()) addShareButton(client, screen, event);
-            if (state.hasActiveSession() || ConnectionStatusScreen.isAvailable(client)) {
+            if (ConnectionStatusScreen.isAvailable(client)) {
                 addStatusButton(client, screen, event);
             }
         } else if (screen instanceof JoinMultiplayerScreen) {
@@ -60,6 +60,7 @@ public final class McLinkClient {
 
     private void onClientTick(TickEvent.ClientTickEvent.Post event) {
         Minecraft client = Minecraft.getInstance();
+        RouteStatusPublisher.sendHeartbeat();
         state.tick(client);
         String error = state.takeError();
         if (error != null) {

@@ -37,7 +37,7 @@ public final class McLinkClient {
         Minecraft client = Minecraft.getInstance();
         if (screen instanceof PauseScreen) {
             if (client.hasSingleplayerServer()) addShareButton(client, screen, event);
-            if (state.hasActiveSession() || ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen, event);
+            if (ConnectionStatusScreen.isAvailable(client)) addStatusButton(client, screen, event);
         } else if (screen instanceof JoinMultiplayerScreen) {
             addConnectButton(client, screen, screen.width, screen.height, event);
         }
@@ -45,6 +45,7 @@ public final class McLinkClient {
 
     private void onClientTick(TickEvent.ClientTickEvent.Post event) {
         Minecraft client = Minecraft.getInstance();
+        RouteStatusPublisher.sendHeartbeat();
         state.tick(client);
         String error = state.takeError();
         if (error != null) {
@@ -102,26 +103,21 @@ public final class McLinkClient {
         if (direct == null) return;
 
         Button connect = findButton(event, "mclink.join");
-        int row3Y = event.getListenersList().stream()
-                .filter(listener -> listener != connect)
-                .filter(Button.class::isInstance)
-                .map(Button.class::cast)
-                .mapToInt(Button::getY)
-                .max()
-                .orElse(height - 28);
+        int row1Y = height - 76;
+        int row2Y = height - 52;
+        int connectY = height - 28;
         int connectWidth = Math.min(204, Math.max(1, width - 32));
         int connectX = (width - connectWidth) / 2;
 
-        // This callback runs once after vanilla lays out the screen. Reapply
-        // the reserved row on every init, then place a reused Tailcat button
-        // against the current dimensions rather than its previous coordinates.
-        for (GuiEventListener listener : event.getListenersList()) {
-            if (listener instanceof Button b && b != connect) {
-                b.setY(b.getY() - 24);
-            }
-        }
+        setButtonY(event, "selectServer.select", row1Y);
+        setButtonY(event, "selectServer.direct", row1Y);
+        setButtonY(event, "selectServer.add", row1Y);
+        setButtonY(event, "selectServer.edit", row2Y);
+        setButtonY(event, "selectServer.delete", row2Y);
+        setButtonY(event, "selectServer.refresh", row2Y);
+        setButtonY(event, "gui.back", row2Y);
         if (connect != null) {
-            connect.setPosition(connectX, row3Y);
+            connect.setPosition(connectX, connectY);
             connect.setWidth(connectWidth);
         }
 
@@ -135,10 +131,15 @@ public final class McLinkClient {
         if (connect == null) {
             Button joinBtn = Button.builder(Component.translatable("mclink.join"),
                     b -> client.setScreen(new JoinRemoteScreen(screen)))
-                    .bounds(connectX, row3Y, connectWidth, 20)
+                    .bounds(connectX, connectY, connectWidth, 20)
                     .build();
             event.addListener(joinBtn);
         }
+    }
+
+    private static void setButtonY(ScreenEvent.Init.Post event, String translationKey, int y) {
+        Button button = findButton(event, translationKey);
+        if (button != null) button.setY(y);
     }
 
     private static Button findButton(ScreenEvent.Init.Post event, String translationKey) {
